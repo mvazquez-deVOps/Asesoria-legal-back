@@ -43,6 +43,9 @@ dependencies {
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
+	implementation 'com.github.librepdf:openpdf:1.3.30'
+
+
 
 }
 

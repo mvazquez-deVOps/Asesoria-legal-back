@@ -18,3 +18,5 @@
 
 ## Rutas principales
 ### Frontend → DiagnosisRequestDTO → DiagnosisEntity → DiagnosisResponse → Frontend.
+
+## DiagnosisRequestDTO → DiagnosisController → DiagnosisService → DiagnosisRepository → DiagnosisEntity → DiagnosisResponse → Frontend
