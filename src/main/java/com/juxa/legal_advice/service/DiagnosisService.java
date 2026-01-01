@@ -1,7 +1,6 @@
 package com.juxa.legal_advice.service;
 
-
-
+import com.juxa.legal_advice.dto.DiagnosisDTO;
 import com.juxa.legal_advice.dto.DiagnosisRequestDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.model.DiagnosisResponse;
@@ -9,44 +8,67 @@ import com.juxa.legal_advice.repository.DiagnosisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class DiagnosisService {
 
     private final DiagnosisRepository diagnosisRepository;
-    private final GeminiService geminiService; // IA externa
-    private final WhatsappService whatsappService; // Integración externa
+    private final GeminiService geminiService;
+    private final WhatsappService whatsappService;
 
-    /**
-     * Guarda el diagnóstico en la base de datos a partir del DTO recibido.
-     */
-    public DiagnosisEntity saveDiagnosis(DiagnosisRequestDTO dto) {
+    /** Guardar diagnóstico a partir de DTO */
+    public DiagnosisDTO save(DiagnosisDTO dto) {
         DiagnosisEntity entity = DiagnosisEntity.builder()
-                .name(dto.getName())
-                .email(dto.getEmail())
-                .phone(dto.getPhone())
-                .category(dto.getCategory())
-                .subcategory(dto.getSubcategory())
-                .description(dto.getDescription())
-                .amount(dto.getAmount())
-                .location(dto.getLocation())
-                .counterparty(dto.getCounterparty())
-                .processStatus(dto.getProcessStatus())
+                .userId(dto.getUserData().getUserId()) // asegúrate de tener este campo en UserDataDTO y DiagnosisEntity
+                .name(dto.getUserData().getName())
+                .email(dto.getUserData().getEmail())
+                .phone(dto.getUserData().getPhone())
+                .category(dto.getUserData().getCategory())
+                .subcategory(dto.getUserData().getSubcategory())
+                .description(dto.getUserData().getDescription())
+                .amount(Double.parseDouble(dto.getUserData().getAmount()))
+                .location(dto.getUserData().getLocation())
+                .counterparty(dto.getUserData().getCounterparty())
+                .processStatus(dto.getUserData().getProcessStatus())
+                .folio(generateFolio())
+                .createdAt(LocalDateTime.now())
                 .build();
 
-        return diagnosisRepository.save(entity);
+        DiagnosisEntity saved = diagnosisRepository.save(entity);
+        return mapToDTO(saved);
     }
 
-    /**
-     * Genera la respuesta legal usando IA + lógica de negocio.
-     */
+    /** Buscar por ID */
+    public DiagnosisDTO findById(String id) {
+        return diagnosisRepository.findById(Long.parseLong(id))
+                .map(this::mapToDTO)
+                .orElse(null);
+    }
+
+    /** Buscar por email */
+    public List<DiagnosisDTO> findByUserEmail(String email) {
+        return diagnosisRepository.findByEmail(email)
+                .stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    /** Buscar por userId */
+    public List<DiagnosisDTO> findByUser(String userId) {
+        return diagnosisRepository.findByUserId(userId)
+                .stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    /** Generar respuesta legal */
     public DiagnosisResponse generateResponse(DiagnosisEntity entity) {
-        // Llamada a Gemini para obtener un resumen legal
         String summary = geminiService.generateLegalSummary(entity);
 
-        // Ejemplo de pasos sugeridos (pueden venir de Gemini o lógica propia)
         var steps = Arrays.asList(
                 "Reunir evidencia documental",
                 "Consultar abogado especializado en " + entity.getCategory(),
@@ -54,7 +76,6 @@ public class DiagnosisService {
                 "Definir estrategia procesal en " + entity.getLocation()
         );
 
-        // Determinar nivel de riesgo según estatus
         String riskLevel = switch (entity.getProcessStatus()) {
             case "Preventivo" -> "Bajo";
             case "Notificado" -> "Moderado";
@@ -63,11 +84,10 @@ public class DiagnosisService {
             default -> "Indefinido";
         };
 
-        // Enviar lead a WhatsApp (opcional)
         whatsappService.sendLead(entity);
 
         return DiagnosisResponse.builder()
-                .diagnosisId(entity.getId())
+                .diagnosisId(String.valueOf(entity.getId()))
                 .summary(summary)
                 .steps(steps)
                 .riskLevel(riskLevel)
@@ -75,13 +95,24 @@ public class DiagnosisService {
                 .build();
     }
 
-    /**
-     * Recupera una respuesta previamente guardada.
-     */
-    public DiagnosisResponse findResponseById(Long id) {
-        DiagnosisEntity entity = diagnosisRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Diagnóstico no encontrado"));
+    /** Mapear entidad a DTO */
+    private DiagnosisDTO mapToDTO(DiagnosisEntity entity) {
+        DiagnosisDTO dto = new DiagnosisDTO();
+        dto.setId(String.valueOf(entity.getId()));
+        dto.setStatus(entity.getProcessStatus());
+        dto.setFolio(entity.getFolio());
+        dto.setCreatedAt(entity.getCreatedAt().toString());
+        // dto.setUserData(...) si decides mapearlo también
+        return dto;
+    }
 
-        return generateResponse(entity);
+    /** Generar folio único */
+    private String generateFolio() {
+        return "FOL-" + System.currentTimeMillis();
+    }
+    public DiagnosisResponse findResponseById(Long id) {
+        return diagnosisRepository.findById(id)
+                .map(this::generateResponse)
+                .orElse(null);
     }
 }

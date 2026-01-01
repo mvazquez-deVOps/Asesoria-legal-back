@@ -23,7 +23,8 @@ public class DiagnosisResponse {
     private String advisorNote;
 
     // Identificador del diagnóstico (para trazabilidad)
-    private Long diagnosisId;
+    private String diagnosisId;
+
 }
 
 

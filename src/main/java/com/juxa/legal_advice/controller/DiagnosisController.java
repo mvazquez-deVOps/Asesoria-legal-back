@@ -1,11 +1,22 @@
 package com.juxa.legal_advice.controller;
 
+import com.juxa.legal_advice.dto.DiagnosisDTO;
+import com.juxa.legal_advice.service.DiagnosisService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/diagnoses")
-public class  DiagnosisController {
+public class DiagnosisController {
+
+    private final DiagnosisService diagnosisService;
+
+    public DiagnosisController(DiagnosisService diagnosisService) {
+        this.diagnosisService = diagnosisService;
+    }
+
     @PostMapping
     public ResponseEntity<DiagnosisDTO> save(@RequestBody DiagnosisDTO diagnosis) {
         return ResponseEntity.ok(diagnosisService.save(diagnosis));
@@ -18,7 +29,12 @@ public class  DiagnosisController {
 
     @GetMapping("/{id}")
     public ResponseEntity<DiagnosisDTO> getById(@PathVariable String id) {
-        return ResponseEntity.ok(diagnosisService.findById(id));
+        DiagnosisDTO diagnosis = diagnosisService.findById(id);
+        return diagnosis != null ? ResponseEntity.ok(diagnosis) : ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/email/{email}")
+    public ResponseEntity<List<DiagnosisDTO>> getByUserEmail(@PathVariable String email) {
+        return ResponseEntity.ok(diagnosisService.findByUserEmail(email));
+    }
 }

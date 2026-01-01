@@ -1,4 +1,5 @@
 package com.juxa.legal_advice.model;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -16,49 +17,23 @@ public class DiagnosisEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Identificación del usuario
-    @NotBlank
+    private String userId;   //  requerido por findByUser
     private String name;
-
-    @Email
-    @NotBlank
     private String email;
-
-    @NotBlank
-    @Size(min = 10, max = 15)
     private String phone;
-
-    // Contexto jurídico
-    @NotBlank
     private String category;
-
-    @NotBlank
     private String subcategory;
-
-    @NotBlank
-    @Column(length = 2000)
     private String description;
-
-    // Variables de éxito
-    @DecimalMin("0.0")
     private Double amount;
-
-    @NotBlank
     private String location;
-
-    @NotBlank
     private String counterparty;
-
-    @NotBlank
     private String processStatus;
 
-    // Metadatos
+
+    private String folio;    // 🔹 requerido por mapToDTO
     private LocalDateTime createdAt;
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+    public Long getId(){
+        return id;
     }
-
 }
-
