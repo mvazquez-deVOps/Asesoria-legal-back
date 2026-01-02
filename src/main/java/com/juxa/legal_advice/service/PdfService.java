@@ -1,50 +1,48 @@
 package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.model.DiagnosisResponse;
+import com.juxa.legal_advice.model.SubscriptionPlan;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfWriter;
 import org.springframework.stereotype.Service;
-import com.lowagie.text.Document;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.FontFactory;
 import java.io.ByteArrayOutputStream;
-
+import java.awt.Color;
 
 @Service
 public class PdfService {
 
-    public byte[] generateDiagnosisPdf(DiagnosisResponse response) {
+    public byte[] generateDiagnosisPdf(DiagnosisResponse response, SubscriptionPlan plan) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = new Document();
+            Document document = new Document(PageSize.A4, 50, 50, 50, 50);
             PdfWriter.getInstance(document, baos);
             document.open();
 
-            // Título
-            document.add(new Paragraph("Estrategia Maestra", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18)));
-            document.add(new Paragraph(" "));
+            // FUENTES
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Color.BLACK);
+            Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Color.BLUE);
+            Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Color.BLACK);
 
-            // Resumen
-            document.add(new Paragraph("Resumen:", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14)));
-            document.add(new Paragraph(response.getSummary()));
-            document.add(new Paragraph(" "));
+            // ENCABEZADO
+            String headerText = (plan == SubscriptionPlan.BUSINESS_PLAN)
+                    ? "INFORME CORPORATIVO - JUXA" : "PLAN DE ACCIÓN JURÍDICA - JUXA";
 
-            // Pasos sugeridos
-            document.add(new Paragraph("Pasos sugeridos:", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14)));
-            for (String step : response.getSteps()) {
-                document.add(new Paragraph("• " + step));
-            }
-            document.add(new Paragraph(" "));
+            document.add(new Paragraph(headerText, titleFont));
+            document.add(new Paragraph("Referencia: #" + response.getDiagnosisId(), bodyFont));
+            document.add(new Paragraph("Consultante: " + response.getClientName(), bodyFont));
+            document.add(new Paragraph("-----------------------------------------------------------"));
 
-            // Nivel de riesgo
-            document.add(new Paragraph("Nivel de riesgo: " + response.getRiskLevel()));
+            // CONTENIDO (Ahora vendrá limpio de JSON gracias al Service)
+            document.add(new Paragraph("\nDICTAMEN ESTRATÉGICO:", sectionFont));
+            document.add(new Paragraph(response.getSummary(), bodyFont));
 
-            // Nota del asesor
-            document.add(new Paragraph("Nota del asesor: " + response.getAdvisorNote()));
+            document.add(new Paragraph("\nNIVEL DE RIESGO: " + response.getRiskLevel(), sectionFont));
+            document.add(new Paragraph("\nNOTA DEL ASESOR:", sectionFont));
+            document.add(new Paragraph(response.getAdvisorNote(), bodyFont));
 
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Error generando PDF", e);
+            throw new RuntimeException("Error generando el PDF", e);
         }
     }
 }

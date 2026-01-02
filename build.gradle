@@ -29,6 +29,9 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.mysql:mysql-connector-j:8.0.33'
 
+	//Desacargar en PDF
+	implementation 'com.github.librepdf:openpdf:1.3.30'
+
 
     // Seguridad y monitoreo
 	//implementation'org.springframework.boot:spring-boot-starter-security'

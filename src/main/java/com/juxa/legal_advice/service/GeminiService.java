@@ -1,6 +1,8 @@
 package com.juxa.legal_advice.service;
 
-import com.juxa.legal_advice.dto.UserDataDTO; // Importante añadir este
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
@@ -11,61 +13,61 @@ import java.util.Map;
 public class GeminiService {
 
     private final GeminiClient geminiClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Genera un resumen legal estático (usado al guardar el diagnóstico)
-     */
-    public String generateLegalSummary(DiagnosisEntity entity) {
-        String prompt = buildPrompt(entity);
-        return geminiClient.callGemini(prompt);
-    }
-
-    /**
-     * SUGERENCIA PASO 2: Genera la respuesta inicial del chat interactivo
+     * Resuelve el error en AiController línea 25
      */
     public String generateInitialChatResponse(UserDataDTO userData) {
         String prompt = String.format(
-                "Actúa como un abogado experto. El cliente ha presentado un caso de %s sobre %s. " +
-                        "Descripción: %s. Salúdalo por su nombre (%s) y dale una primera impresión técnica muy breve.",
-                userData.getCategory(), userData.getSubcategory(), userData.getDescription(), userData.getName()
+                "Actúa como un abogado experto. Saluda a %s. El caso es de materia %s sobre %s. " +
+                        "Descripción: %s. Da una primera impresión técnica breve.",
+                userData.getName(), userData.getCategory(),
+                userData.getSubcategory(), userData.getDescription()
         );
 
-        return geminiClient.callGemini(prompt);
+        String fullResponse = geminiClient.callGemini(prompt);
+        return extractTextFromResponse(fullResponse);
     }
 
     /**
-     * SUGERENCIA PASO 2: Procesa mensajes de seguimiento en el chat
+     * Resuelve el error en AiController línea 36
      */
     public String processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("currentMessage");
 
-        // Aquí construimos un prompt que le da el "rol" de abogado a Gemini para el chat
-        String prompt = "Contexto: Eres un asistente legal inteligente. " +
-                "Responde a la siguiente duda del cliente de forma profesional y clara: " + currentMessage;
+        String prompt = "Eres el asistente legal de JUXA. Responde profesionalmente: " + currentMessage;
 
-        return geminiClient.callGemini(prompt);
+        String fullResponse = geminiClient.callGemini(prompt);
+        return extractTextFromResponse(fullResponse);
     }
 
-    private String buildPrompt(DiagnosisEntity entity) {
-        return """
-            Actúa como un abogado experto en %s.
-            Subespecialidad: %s.
-            Descripción del caso: %s.
-            Cuantía estimada: %s MXN.
-            Jurisdicción: %s.
-            Contraparte: %s.
-            Estatus actual: %s.
-            
-            Genera un dictamen preliminar claro y estructurado,
-            con pasos sugeridos y nivel de riesgo.
-            """.formatted(
-                entity.getCategory(),
-                entity.getSubcategory(),
-                entity.getDescription(),
-                entity.getAmount(),
-                entity.getLocation(),
-                entity.getCounterparty(),
-                entity.getProcessStatus()
-        );
+    /**
+     * Usado para generar el dictamen del PDF
+     */
+    public String generateLegalSummary(DiagnosisEntity entity) {
+        String prompt = """
+            Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
+            Materia: %s. Hechos: %s.
+            Divide tu respuesta exactamente en: 
+            1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
+            """.formatted(entity.getCategory(), entity.getDescription());
+
+        String fullResponse = geminiClient.callGemini(prompt);
+        return extractTextFromResponse(fullResponse);
+    }
+
+    /**
+     * Limpia el JSON de Gemini para que no salga en el PDF ni en el Chat
+     */
+    private String extractTextFromResponse(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            return root.path("candidates").get(0)
+                    .path("content").path("parts").get(0)
+                    .path("text").asText();
+        } catch (Exception e) {
+            return "Error al procesar respuesta legal: " + e.getMessage();
+        }
     }
 }

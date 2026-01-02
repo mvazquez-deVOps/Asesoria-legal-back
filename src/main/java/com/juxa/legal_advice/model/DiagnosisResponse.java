@@ -25,6 +25,9 @@ public class DiagnosisResponse {
     // Identificador del diagnóstico (para trazabilidad)
     private String diagnosisId;
 
+    private String clientName;
+    private String legalField;
+
 }
 
 

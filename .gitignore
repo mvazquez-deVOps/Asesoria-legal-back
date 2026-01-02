@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Seguridad: No subir claves de API
+.env
+application-local.properties
+HELP.md
+target/

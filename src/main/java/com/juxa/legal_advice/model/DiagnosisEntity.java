@@ -38,4 +38,10 @@ public class DiagnosisEntity {
     private String folio;    // requerido por mapToDTO
     private LocalDateTime createdAt;
 
+        @Enumerated(EnumType.STRING)
+        private SubscriptionPlan plan = SubscriptionPlan.SINGLE_DIAGNOSIS; // Plan por defecto
+
+        private boolean isPaid = false;
+
+
 }
