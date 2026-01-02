@@ -1,29 +1,49 @@
 package com.juxa.legal_advice.service;
 
-
-
+import com.juxa.legal_advice.dto.UserDataDTO; // Importante añadir este
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class GeminiService {
 
-    private final GeminiClient geminiClient; // Cliente HTTP configurado en GeminiConfig
+    private final GeminiClient geminiClient;
 
     /**
-     * Genera un resumen legal usando Gemini a partir de la entidad Diagnosis.
+     * Genera un resumen legal estático (usado al guardar el diagnóstico)
      */
     public String generateLegalSummary(DiagnosisEntity entity) {
-        // Construcción del prompt legal
         String prompt = buildPrompt(entity);
+        return geminiClient.callGemini(prompt);
+    }
 
-        // Llamada al cliente Gemini (ej. REST API)
-        String response = geminiClient.callGemini(prompt);
+    /**
+     * SUGERENCIA PASO 2: Genera la respuesta inicial del chat interactivo
+     */
+    public String generateInitialChatResponse(UserDataDTO userData) {
+        String prompt = String.format(
+                "Actúa como un abogado experto. El cliente ha presentado un caso de %s sobre %s. " +
+                        "Descripción: %s. Salúdalo por su nombre (%s) y dale una primera impresión técnica muy breve.",
+                userData.getCategory(), userData.getSubcategory(), userData.getDescription(), userData.getName()
+        );
 
-        // Aquí puedes aplicar post-procesamiento (ej. limpiar texto, truncar, enriquecer)
-        return response;
+        return geminiClient.callGemini(prompt);
+    }
+
+    /**
+     * SUGERENCIA PASO 2: Procesa mensajes de seguimiento en el chat
+     */
+    public String processInteractiveChat(Map<String, Object> payload) {
+        String currentMessage = (String) payload.get("currentMessage");
+
+        // Aquí construimos un prompt que le da el "rol" de abogado a Gemini para el chat
+        String prompt = "Contexto: Eres un asistente legal inteligente. " +
+                "Responde a la siguiente duda del cliente de forma profesional y clara: " + currentMessage;
+
+        return geminiClient.callGemini(prompt);
     }
 
     private String buildPrompt(DiagnosisEntity entity) {

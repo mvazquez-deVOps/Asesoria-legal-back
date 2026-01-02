@@ -25,16 +25,9 @@ public class GeminiClient {
     public String callGemini(String prompt) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
+        headers.set("x-goog-api-key", apiKey);
 
-        String body = """
-            {
-              "contents": [{
-                "role": "user",
-                "parts": [{"text": "%s"}]
-              }]
-            }
-            """.formatted(prompt);
+        String body = "{ \"contents\": [{ \"parts\": [{ \"text\": \"" + prompt + "\" }] }] }";
 
         HttpEntity<String> request = new HttpEntity<>(body, headers);
 

@@ -3,7 +3,6 @@ package com.juxa.legal_advice.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,17 +22,20 @@ public class DiagnosisEntity {
     private String phone;
     private String category;
     private String subcategory;
+    @Column(length = 2000)
     private String description;
-    private Double amount;
+
+    private String amount;
     private String location;
     private String counterparty;
     private String processStatus;
 
+    private Boolean hasChildren;
+    private Boolean hasViolence;
+    private String diagnosisPreference;
 
-    private String folio;    // 🔹 requerido por mapToDTO
+
+    private String folio;    // requerido por mapToDTO
     private LocalDateTime createdAt;
 
-    public Long getId(){
-        return id;
-    }
 }

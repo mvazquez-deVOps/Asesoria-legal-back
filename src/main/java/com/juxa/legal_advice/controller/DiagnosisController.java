@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.DiagnosisDTO;
+import com.juxa.legal_advice.model.DiagnosisResponse;
 import com.juxa.legal_advice.service.DiagnosisService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,9 +19,10 @@ public class DiagnosisController {
     }
 
     @PostMapping
-    public ResponseEntity<DiagnosisDTO> save(@RequestBody DiagnosisDTO diagnosis) {
+    public ResponseEntity<DiagnosisResponse> save(@RequestBody DiagnosisDTO diagnosis) {
         return ResponseEntity.ok(diagnosisService.save(diagnosis));
     }
+
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<DiagnosisDTO>> getByUser(@PathVariable String userId) {

@@ -1,7 +1,6 @@
 package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.dto.DiagnosisDTO;
-import com.juxa.legal_advice.dto.DiagnosisRequestDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.model.DiagnosisResponse;
 import com.juxa.legal_advice.repository.DiagnosisRepository;
@@ -21,25 +20,47 @@ public class DiagnosisService {
     private final WhatsappService whatsappService;
 
     /** Guardar diagnóstico a partir de DTO */
-    public DiagnosisDTO save(DiagnosisDTO dto) {
-        DiagnosisEntity entity = DiagnosisEntity.builder()
-                .userId(dto.getUserData().getUserId()) // asegúrate de tener este campo en UserDataDTO y DiagnosisEntity
-                .name(dto.getUserData().getName())
-                .email(dto.getUserData().getEmail())
-                .phone(dto.getUserData().getPhone())
-                .category(dto.getUserData().getCategory())
-                .subcategory(dto.getUserData().getSubcategory())
-                .description(dto.getUserData().getDescription())
-                .amount(Double.parseDouble(dto.getUserData().getAmount()))
-                .location(dto.getUserData().getLocation())
-                .counterparty(dto.getUserData().getCounterparty())
-                .processStatus(dto.getUserData().getProcessStatus())
-                .folio(generateFolio())
-                .createdAt(LocalDateTime.now())
-                .build();
+    public DiagnosisResponse save(DiagnosisDTO dto) {
+        DiagnosisEntity entity = new DiagnosisEntity();
+
+        if (dto.getUserData() != null) {
+            var userData = dto.getUserData();
+        //Campos base (en inglés para persistencia del JSON)
+            entity.setUserId(userData.getUserId());
+            entity.setName(userData.getName()); // El Front envía "name", no "fullName"
+            entity.setEmail(userData.getEmail());
+            entity.setPhone(userData.getPhone());
+            entity.setCategory(userData.getCategory());
+            entity.setSubcategory(userData.getSubcategory());
+            entity.setDescription(userData.getDescription());
+            entity.setLocation(userData.getLocation());
+            entity.setCounterparty(userData.getCounterparty());
+            entity.setProcessStatus(userData.getProcessStatus());
+
+
+
+            if (userData.getHasChildren() != null) {
+                // Convertimos el String del DTO al Boolean que requiere la Entidad
+                entity.setHasChildren(Boolean.parseBoolean(userData.getHasChildren()));
+            }
+
+            if (userData.getHasViolence() != null) {
+                entity.setHasViolence(Boolean.parseBoolean(userData.getHasViolence()));
+            }
+
+
+// Manejo robusto del monto (amount es String en el Front)
+            entity.setAmount(userData.getAmount());
+          //  entity.setHasChildren(Boolean.parseBoolean(userData.getHasChildren()));
+           //  entity.setHasViolence(Boolean.parseBoolean(userData.getHasViolence()));
+            entity.setDiagnosisPreference(userData.getDiagnosisPreference());
+        }
+
+        entity.setFolio(generateFolio());
+        entity.setCreatedAt(LocalDateTime.now());
 
         DiagnosisEntity saved = diagnosisRepository.save(entity);
-        return mapToDTO(saved);
+        return generateResponse(saved);
     }
 
     /** Buscar por ID */
