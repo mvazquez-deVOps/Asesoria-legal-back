@@ -1,0 +1,7 @@
+# Ignorar Git y archivos de sistema
+.git
+.gitignore
+
+# PERO NO IGNORAR LA CARPETA BUILD
+!build/
+!build/libs/*.jar
