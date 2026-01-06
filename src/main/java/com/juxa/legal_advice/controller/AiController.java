@@ -12,6 +12,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "https://asesoria-legal-frontend-284685729356.us-central1.run.app")
 public class AiController {
 
     private final GeminiService geminiService;
