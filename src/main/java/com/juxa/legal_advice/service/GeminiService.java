@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import java.util.Map;
@@ -15,8 +16,15 @@ public class GeminiService {
     private final GeminiClient geminiClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Value("${gcp.asesoria-legal-juxa-83a12}")
+    private String projectId;
+
+    @Value("${gcp.asesoria-legal-bucket}")
+    private String bucketName;
+
+
     /**
-     * Resuelve el error en AiController línea 25
+     * Resuelve el error en AiController
      */
     public String generateInitialChatResponse(UserDataDTO userData) {
         String prompt = String.format(
@@ -31,7 +39,7 @@ public class GeminiService {
     }
 
     /**
-     * Resuelve el error en AiController línea 36
+     * Resuelve el error en AiController
      */
     public String processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("currentMessage");
