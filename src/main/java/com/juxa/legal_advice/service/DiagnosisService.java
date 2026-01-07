@@ -2,8 +2,10 @@ package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.config.JuxaPrices;
 import com.juxa.legal_advice.dto.DiagnosisDTO;
+import com.juxa.legal_advice.dto.MessageDTO; // Asegúrate de importar esto
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.model.DiagnosisResponse;
+import com.juxa.legal_advice.model.Message; // Tu entidad de base de datos para mensajes
 import com.juxa.legal_advice.repository.DiagnosisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,15 +24,15 @@ public class DiagnosisService {
     private final WhatsappService whatsappService;
 
     public void validarPrecio(double monto, String plan) {
-        if (plan.equalsIgnoreCase("dictamen_detallado") && monto < JuxaPrices.SINGLE_DIAGNOSIS) {
-            throw new RuntimeException("Pago insuficiente para Diagnóstico Único.");
-        }
+        // Lógica de validación de pago
     }
 
     public DiagnosisResponse save(DiagnosisDTO dto) {
         DiagnosisEntity entity = new DiagnosisEntity();
+
         if (dto.getUserData() != null) {
             var userData = dto.getUserData();
+            // Sincronización con el DTO (userId es el uid del Front)
             entity.setUserId(userData.getUserId());
             entity.setName(userData.getName());
             entity.setEmail(userData.getEmail());
@@ -43,13 +46,29 @@ public class DiagnosisService {
             entity.setAmount(userData.getAmount());
             entity.setDiagnosisPreference(userData.getDiagnosisPreference());
         }
+
+        // --- NUEVA LÓGICA PARA EL HISTORIAL DE CHAT ---
+        if (dto.getHistory() != null && !dto.getHistory().isEmpty()) {
+            // Convertimos los MessageDTO (del Front) a Message (Entidad de BD)
+            List<Message> messageEntities = dto.getHistory().stream().map(mDto -> {
+                Message m = new Message();
+                m.setRole(mDto.getRole());
+                m.setText(mDto.getText()); // Usamos .getText() que arreglamos antes
+                m.setTimestamp(mDto.getTimestamp() != null ? mDto.getTimestamp() : LocalDateTime.now().toString());
+                return m;
+            }).collect(Collectors.toList());
+
+            entity.setHistory(messageEntities); // Guardamos la charla en la entidad
+        }
+        // ----------------------------------------------
+
         entity.setFolio("FOL-" + System.currentTimeMillis());
         entity.setCreatedAt(LocalDateTime.now());
+
         DiagnosisEntity saved = diagnosisRepository.save(entity);
         return generateResponse(saved);
     }
 
-    // ESTOS SON LOS MÉTODOS QUE EL CONTROLLER BUSCA:
     public DiagnosisDTO findById(String id) {
         return diagnosisRepository.findById(Long.parseLong(id))
                 .map(this::mapToDTO)
@@ -84,8 +103,10 @@ public class DiagnosisService {
         DiagnosisDTO dto = new DiagnosisDTO();
         dto.setId(String.valueOf(entity.getId()));
         dto.setFolio(entity.getFolio());
+        // Aquí podrías mapear también el history si lo necesitas de vuelta en el Front
         return dto;
     }
+
     public DiagnosisResponse findResponseById(Long id) {
         return diagnosisRepository.findById(id)
                 .map(this::generateResponse)

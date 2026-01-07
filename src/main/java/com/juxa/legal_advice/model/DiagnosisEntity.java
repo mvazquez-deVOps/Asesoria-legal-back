@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "diagnoses")
@@ -41,7 +42,14 @@ public class DiagnosisEntity {
         @Enumerated(EnumType.STRING)
         private SubscriptionPlan plan = SubscriptionPlan.SINGLE_DIAGNOSIS; // Plan por defecto
 
-        private boolean isPaid = false;
+
+
+         //Se comenta la linea 44 para que sean aceptados los planes premiun sin pago
+        //private boolean isPaid = false;
+
+        private boolean isPaid = true;
+        private List<Message> history;
+
 
 
 }
