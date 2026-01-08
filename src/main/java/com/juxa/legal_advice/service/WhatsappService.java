@@ -5,41 +5,19 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class WhatsappService {
-    /**
-     * Envía un lead legal por WhatsApp usando los datos del diagnóstico.
-     */
-    public void sendLead(DiagnosisEntity entity) {
-        String phone = entity.getPhone();
-        String message = buildMessage(entity);
 
-        // Aquí iría la integración con la API de WhatsApp (Twilio, Meta, etc.)
-        System.out.printf("📲 Enviando mensaje a %s:\n%s\n", phone, message);
-    }
+    public void sendDiagnosisNotification(DiagnosisEntity entity) {
+        // Como ya no hay campo 'phone' en la entidad, enviamos a un log o
+        // usamos un dato genérico mientras se implementa la relación con User
+        System.out.println("Enviando notificación de WhatsApp para el diagnóstico ID: " + entity.getId());
 
-    /**
-     * Construye el mensaje legal que se enviará por WhatsApp.
-     */
-    private String buildMessage(DiagnosisEntity entity) {
-        return """
-            Hola %s, gracias por confiar en Asesoría Legal Integral.
-
-            Hemos recibido tu caso sobre: %s
-            Cuantía estimada: %s MXN
-            Jurisdicción: %s
-            Contraparte: %s
-            Estatus actual: %s
-
-            Nuestro equipo legal está analizando tu situación. Pronto recibirás tu dictamen preliminar.
-            """.formatted(
-                entity.getName(),
-                entity.getDescription(),
-                entity.getAmount(),
-                entity.getLocation(),
-                entity.getCounterparty(),
-                entity.getProcessStatus()
+        String message = String.format(
+                "Hola! Tu diagnóstico JUXA está listo.\nID: %s\nDescripción: %s",
+                entity.getId(),
+                entity.getDescription()
         );
+
+        // Aquí iría tu lógica de cliente de WhatsApp (Twilio/Meta)
+        System.out.println("Mensaje: " + message);
     }
-
-
-
 }

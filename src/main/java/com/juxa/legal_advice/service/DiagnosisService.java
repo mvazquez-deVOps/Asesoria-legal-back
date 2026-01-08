@@ -21,31 +21,19 @@ public class DiagnosisService {
     private final DiagnosisRepository diagnosisRepository;
     private final GeminiService geminiService;
 
+    // 1. Guardar diagnóstico normal
     public DiagnosisResponse save(DiagnosisDTO dto) {
         DiagnosisEntity entity = new DiagnosisEntity();
         if (dto.getUserData() != null) {
-            var userData = dto.getUserData();
-            entity.setUserId(userData.getUserId());
-            // Nota: Si quitaste name/email de DiagnosisEntity para que solo estén en UserEntity,
-            // comenta estas líneas. Si las dejaste como espejo, déjalas así:
-            // entity.setName(userData.getName());
-            // entity.setEmail(userData.getEmail());
-            entity.setDescription(userData.getDescription());
+            entity.setUserId(dto.getUserData().getUserId());
+            entity.setDescription(dto.getUserData().getDescription());
         }
-
-        if (dto.getHistory() != null) {
-            String historyText = dto.getHistory().stream()
-                    .map(m -> m.getRole() + ": " + m.getText())
-                    .collect(Collectors.joining("\n"));
-            entity.setHistory(historyText);
-        }
-
         entity.setCreatedAt(LocalDateTime.now());
-        entity.setPaid(true); // Usando el campo isPaid de la entidad
-
+        entity.setPaid(true);
         return generateResponse(diagnosisRepository.save(entity));
     }
 
+    // 2. Guardar interacción del chat (EL QUE TE FALTA)
     public void saveFromChat(Map<String, Object> payload, String aiResponse) {
         try {
             Map<String, Object> userDataMap = (Map<String, Object>) payload.get("userData");
@@ -60,22 +48,39 @@ public class DiagnosisService {
                 entity = new DiagnosisEntity();
             }
 
-            if (entity.getId() == null && userDataMap != null) {
+            if (entity.getId() == null) {
                 entity.setUserId(userId);
-                entity.setDescription((String) userDataMap.get("description"));
                 entity.setCreatedAt(LocalDateTime.now());
                 entity.setPaid(true);
             }
 
             String historialPrevio = (entity.getHistory() != null) ? entity.getHistory() : "";
-            String nuevaInteraccion = "Usuario: " + userMsg + "\nIA: " + aiResponse + "\n\n";
-            entity.setHistory(historialPrevio + nuevaInteraccion);
+            entity.setHistory(historialPrevio + "Usuario: " + userMsg + "\nIA: " + aiResponse + "\n\n");
 
             diagnosisRepository.save(entity);
-
         } catch (Exception e) {
-            System.err.println("Error en persistencia acumulativa v1.0.1: " + e.getMessage());
+            System.err.println("Error guardando chat: " + e.getMessage());
         }
+    }
+
+    // 3. Buscar por ID para el controlador
+    public DiagnosisDTO findById(String id) {
+        return diagnosisRepository.findById(Long.parseLong(id))
+                .map(this::mapToDTO)
+                .orElseThrow(() -> new RuntimeException("No encontrado"));
+    }
+
+    // 4. Buscar por Usuario para el controlador
+    public List<DiagnosisDTO> findByUser(String userId) {
+        return diagnosisRepository.findByUserId(userId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    private DiagnosisDTO mapToDTO(DiagnosisEntity entity) {
+        DiagnosisDTO dto = new DiagnosisDTO();
+        dto.setId(String.valueOf(entity.getId()));
+        return dto;
     }
 
     public DiagnosisResponse generateResponse(DiagnosisEntity entity) {
@@ -87,27 +92,8 @@ public class DiagnosisService {
                 .build();
     }
 
-    public List<DiagnosisDTO> findByUser(String userId) {
-        return diagnosisRepository.findByUserId(userId).stream()
-                .map(this::mapToDTO).collect(Collectors.toList());
-    }
-
-    private DiagnosisDTO mapToDTO(DiagnosisEntity entity) {
-        DiagnosisDTO dto = new DiagnosisDTO();
-        dto.setId(String.valueOf(entity.getId()));
-        // dto.setFolio(entity.getFolio()); // Comenta esta línea si eliminaste 'folio' de la entidad
-        return dto;
-    }
-
     public DiagnosisEntity findEntityById(Long id) {
         return diagnosisRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("No se encontró el registro con ID: " + id));
-    }
-
-    public boolean canAccessPremiumFeatures(UserEntity user, DiagnosisEntity diagnosis) {
-        if (user != null && "ADMIN".equals(user.getRole())) {
-            return true;
-        }
-        return diagnosis != null && diagnosis.isPaid();
     }
 }

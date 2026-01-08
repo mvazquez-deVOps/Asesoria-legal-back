@@ -11,7 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/diagnoses")
-@RequiredArgsConstructor // Esto genera el constructor automáticamente para diagnosisService
+@RequiredArgsConstructor
 public class DiagnosisController {
 
     private final DiagnosisService diagnosisService;
@@ -23,17 +23,13 @@ public class DiagnosisController {
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<DiagnosisDTO>> getByUser(@PathVariable String userId) {
+        // Llamada a findByUser (debe estar en el Service)
         return ResponseEntity.ok(diagnosisService.findByUser(userId));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DiagnosisDTO> getById(@PathVariable String id) {
-        DiagnosisDTO diagnosis = diagnosisService.findById(id);
-        return diagnosis != null ? ResponseEntity.ok(diagnosis) : ResponseEntity.notFound().build();
-    }
-
-    @GetMapping("/email/{email}")
-    public ResponseEntity<List<DiagnosisDTO>> getByUserEmail(@PathVariable String email) {
-        return ResponseEntity.ok(diagnosisService.findByUserEmail(email));
+        // Llamada a findById (debe estar en el Service)
+        return ResponseEntity.ok(diagnosisService.findById(id));
     }
 }

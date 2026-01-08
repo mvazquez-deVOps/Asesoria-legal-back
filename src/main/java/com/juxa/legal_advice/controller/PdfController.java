@@ -11,34 +11,29 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/pdf")
-@RequiredArgsConstructor // Inyecta los servicios automáticamente (final)
+@RequiredArgsConstructor
 public class PdfController {
 
     private final DiagnosisService diagnosisService;
     private final PdfService pdfService;
 
-    /**
-     * Genera y descarga el PDF de un diagnóstico específico.
-     * Versión 1.0.1: Optimización de consultas y manejo de planes por defecto.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getDiagnosisPdf(@PathVariable Long id) {
         try {
-            // 1. Buscamos la entidad completa (Datos de DB)
+            // 1. Recuperamos la entidad de la base de datos
             DiagnosisEntity entity = diagnosisService.findEntityById(id);
 
-            // 2. Generamos la respuesta técnica (IA) usando la entidad recuperada
+            // 2. Generamos la respuesta técnica (IA) necesaria para el PDF
             DiagnosisResponse response = diagnosisService.generateResponse(entity);
 
-            // 3. Validamos el plan: si es nulo en DB, asignamos el plan base
+            // 3. Obtenemos el plan (o asignamos el plan por defecto)
             SubscriptionPlan plan = (entity.getPlan() != null)
                     ? entity.getPlan()
                     : SubscriptionPlan.SINGLE_DIAGNOSIS;
 
-            // 4. Solicitamos al servicio la creación de los bytes del PDF
+            // 4. CORRECCIÓN: Pasamos los DOS argumentos requeridos por el servicio
             byte[] pdfBytes = pdfService.generateDiagnosisPdf(response, plan);
 
-            // 5. Configuramos las cabeceras para que el navegador lo trate como descarga
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.setContentDisposition(
@@ -49,8 +44,7 @@ public class PdfController {
 
             return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
 
-        } catch (RuntimeException e) {
-            // Si el ID no existe o hay error, devolvemos un 404 o 500
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }

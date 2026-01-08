@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor // Inyecta el UserRepository automáticamente
+@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
@@ -19,28 +19,20 @@ public class UserService {
 
     @Transactional
     public AuthResponseDTO authenticate(AuthRequestDTO credentials) {
-        // 1. Buscamos al usuario en la nueva tabla 'users'
         UserEntity user = userRepository.findByEmail(credentials.getEmail())
-                .orElseThrow(() -> new RuntimeException("Credenciales incorrectas: El correo no existe."));
+                .orElseThrow(() -> new RuntimeException("Usuario no existe"));
 
-        // 2. Validación Real con BCrypt
         if (!passwordEncoder.matches(credentials.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Credenciales incorrectas: Contraseña fallida.");
+            throw new RuntimeException("Contraseña incorrecta");
         }
 
-        // 3. Incremento del contador de ingresos (Paso 2 de tu plan)
-        int currentCount = (user.getLoginCount() != null) ? user.getLoginCount() : 0;
-        user.setLoginCount(currentCount + 1);
-
-        // Guardamos los cambios (esto actualiza la fila existente)
+        user.setLoginCount((user.getLoginCount() != null ? user.getLoginCount() : 0) + 1);
         userRepository.save(user);
 
-        // 4. Retornamos la respuesta (Aquí generarías tu JWT real)
-        return new AuthResponseDTO("TOKEN_PROVISIONAL_101", String.valueOf(user.getId()));
+        return new AuthResponseDTO("token-v101", user.getId().toString());
     }
 
-    // Método para obtener los datos del perfil en el Dashboard
-    public UserDataDTO getUserById(String id) { // <--- Asegúrate que diga String aquí
+    public UserDataDTO getUserById(String id) {
         return userRepository.findById(Long.parseLong(id))
                 .map(user -> {
                     UserDataDTO dto = new UserDataDTO();

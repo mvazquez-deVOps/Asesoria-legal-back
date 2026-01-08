@@ -16,51 +16,29 @@ public class GeminiService {
     private final GeminiClient geminiClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${gcp.project-id}")
-    private String projectId;
-
-    @Value("${gcp.bucket-name}")
-    private String bucketName;
-
-    /**
-     * Respuesta inicial: Aquí le damos TODO el contexto del formulario a la IA.
-     */
     public String generateInitialChatResponse(UserDataDTO userData) {
         String prompt = String.format(
-                "Eres el Chief Growth Officer y Director Jurídico de Duarte-Aupart Abogados (JUXA). " +
+                "Eres el Chief Growth Officer y Director Jurídico de JUXA. " +
                         "Analiza el siguiente caso para el cliente %s:\n" +
-                        "- Materia: %s (%s)\n" +
-                        "- Ubicación: %s\n" +
                         "- Hechos relatados: %s\n\n" +
-                        "Da un diagnóstico técnico inicial breve, autoritativo y resolutivo.",
+                        "Da un diagnóstico técnico inicial breve y resolutivo.",
                 userData.getName(),
-                userData.getCategory(),
-                userData.getSubcategory(),
-                userData.getLocation(),
-                userData.getDescription() // Este es el "Me quiero divorciar"
+                userData.getDescription()
         );
 
         String fullResponse = geminiClient.callGemini(prompt);
         return extractTextFromResponse(fullResponse);
     }
 
-    /**
-     * Chat Interactivo: CORRECCIÓN para no perder el contexto.
-     */
     public String processInteractiveChat(Map<String, Object> payload) {
-        // Extraemos el mensaje actual Y los datos del usuario que vienen en el payload
         String currentMessage = (String) payload.get("message");
         Map<String, Object> userData = (Map<String, Object>) payload.get("userData");
 
-        // Creamos un prompt que le recuerde a la IA de qué estamos hablando
         String prompt = String.format(
-                "Contexto del Cliente: %s está consultando sobre %s. " +
-                        "Hechos iniciales: %s. " +
-                        "Pregunta actual del cliente: %s. " +
-                        "Responde como abogado senior de JUXA de forma táctica.",
-                userData.get("name"),
-                userData.get("subcategory"),
-                userData.get("description"),
+                "Contexto del Cliente: %s. Hechos: %s. Pregunta actual: %s. " +
+                        "Responde como abogado senior de JUXA.",
+                userData != null ? userData.get("name") : "Cliente",
+                userData != null ? userData.get("description") : "No disponible",
                 currentMessage
         );
 
@@ -69,21 +47,13 @@ public class GeminiService {
     }
 
     public String generateLegalSummary(DiagnosisEntity entity) {
-        // Usamos descripción e historial, que son los campos reales en tu DB 1.0.1
-        String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso iniciado por chat";
-        String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial adicional";
+        String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
+        String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
 
         String prompt = """
         Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
-        
-        CONTEXTO Y HECHOS:
-        %s
-        
-        DETALLES ADICIONALES DEL CHAT:
-        %s
-        
-        Divide tu respuesta exactamente en: 
-        1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
+        HECHOS: %s. HISTORIAL: %s.
+        Divide en: 1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
         """.formatted(hechos, contexto);
 
         String fullResponse = geminiClient.callGemini(prompt);
@@ -93,13 +63,9 @@ public class GeminiService {
     private String extractTextFromResponse(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
-            return root.path("candidates").get(0)
-                    .path("content").path("parts").get(0)
-                    .path("text").asText();
+            return root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
         } catch (Exception e) {
-            // Log para debug
-            System.err.println("Error parseando JSON de Gemini: " + response);
-            return "Lo siento, tuve un problema al procesar tu consulta legal. Por favor, intenta de nuevo.";
+            return "Lo siento, hubo un error procesando tu consulta.";
         }
     }
 }
