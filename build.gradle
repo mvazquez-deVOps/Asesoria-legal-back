@@ -38,6 +38,10 @@ dependencies {
     implementation 'com.google.cloud:google-cloud-storage:2.30.0'
     implementation 'com.google.cloud:google-cloud-aiplatform:3.25.0'
 
+
+     //Implementación de Seguridad
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

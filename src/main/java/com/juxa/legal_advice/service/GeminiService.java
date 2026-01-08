@@ -69,12 +69,22 @@ public class GeminiService {
     }
 
     public String generateLegalSummary(DiagnosisEntity entity) {
+        // Usamos descripción e historial, que son los campos reales en tu DB 1.0.1
+        String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso iniciado por chat";
+        String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial adicional";
+
         String prompt = """
-            Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
-            Materia: %s. Hechos: %s.
-            Divide tu respuesta exactamente en: 
-            1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
-            """.formatted(entity.getCategory(), entity.getDescription());
+        Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
+        
+        CONTEXTO Y HECHOS:
+        %s
+        
+        DETALLES ADICIONALES DEL CHAT:
+        %s
+        
+        Divide tu respuesta exactamente en: 
+        1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
+        """.formatted(hechos, contexto);
 
         String fullResponse = geminiClient.callGemini(prompt);
         return extractTextFromResponse(fullResponse);
