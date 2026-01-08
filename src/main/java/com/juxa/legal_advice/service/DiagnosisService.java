@@ -76,7 +76,7 @@ public class DiagnosisService {
             System.out.println(" Persistencia exitosa en Cloud SQL para usuario: " + userId);
 
         } catch (Exception e) {
-            System.err.println("Error crítico guardando chat: " + e.getMessage());
+            System.err.println(" Error crítico guardando chat: " + e.getMessage());
             e.printStackTrace();
         }
     }

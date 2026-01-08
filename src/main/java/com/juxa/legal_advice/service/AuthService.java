@@ -1,30 +1,39 @@
 package com.juxa.legal_advice.service;
 
-import com.juxa.legal_advice.dto.AuthRequestDTO; // Usamos el DTO que ya existe
-import com.juxa.legal_advice.model.UserEntity; // Tu entidad real
+import com.juxa.legal_advice.dto.AuthRequestDTO;
+import com.juxa.legal_advice.dto.AuthResponseDTO;
+import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
+import com.juxa.legal_advice.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor // Esto soluciona la inyección de userRepository
+@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil; // <--- Importante inyectar esto
 
-    public String login(AuthRequestDTO request) {
-        // 1. Buscar al usuario por email usando tu entidad
+    public AuthResponseDTO login(AuthRequestDTO request) {
         UserEntity user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // 2. VALIDACIÓN REAL
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Contraseña incorrecta");
         }
 
-        // 3. Token simulado para la v1.0.1 (mientras creas el JwtService)
-        return "token-provisional-101";
+        // GENERACIÓN DE TOKEN REAL (Ya no más "provisional")
+        String token = jwtUtil.generateToken(user.getEmail());
+
+        return AuthResponseDTO.builder()
+                .token(token)
+                .email(user.getEmail())
+                .name(user.getName())
+                .userId(user.getId())
+                .role(user.getRole())
+                .build();
     }
 }

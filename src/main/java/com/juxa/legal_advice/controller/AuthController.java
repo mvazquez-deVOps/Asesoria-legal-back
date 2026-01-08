@@ -1,8 +1,6 @@
 package com.juxa.legal_advice.controller;
 
-import com.juxa.legal_advice.dto.AuthRequestDTO;
-import com.juxa.legal_advice.dto.AuthResponseDTO;
-import com.juxa.legal_advice.dto.UserDataDTO;
+import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,7 +11,8 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor // Esto inyecta automáticamente el UserService
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class AuthController {
 
     private final UserService userService;
@@ -21,13 +20,22 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequestDTO credentials) {
         try {
-            // Llamamos al servicio que VALIDARÁ la contraseña
+            // El servicio ahora devolverá un TOKEN REAL
             AuthResponseDTO response = userService.authenticate(credentials);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-            // AQUÍ ESTÁ EL ALERTAMIENTO: Si falla, mandamos 401 y el mensaje de error
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Acceso denegado", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/register") // <--- AÑADE ESTO
+    public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
+        try {
+            return ResponseEntity.ok(userService.register(registration));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Error en registro", "message", e.getMessage()));
         }
     }
 
