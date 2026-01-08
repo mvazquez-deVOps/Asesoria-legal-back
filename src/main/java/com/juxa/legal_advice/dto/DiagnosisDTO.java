@@ -7,7 +7,7 @@ import java.util.List;
 public class DiagnosisDTO {
     private String id;
     private UserDataDTO userData;
-    private List<MessageDTO> history; // <--- Cambia 'chatHistory' por 'history'
+    private List<MessageDTO> chatHistory; // <--- Cambia 'chatHistory' por 'history'
     private String status;
     private String folio;
     private String createdAt;

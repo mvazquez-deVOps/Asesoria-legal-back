@@ -26,6 +26,9 @@ public class UserEntity {
 
     private String role;
 
+    @Column(name = "phone")
+    private String phone;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -38,4 +41,8 @@ public class UserEntity {
         this.createdAt = LocalDateTime.now();
         if (this.loginCount == null) this.loginCount = 0;
     }
+    @Builder.Default
+    @Column(name = "subscription_plan")
+    private String subscriptionPlan = "FREE"; // Valor por defecto
+
 }

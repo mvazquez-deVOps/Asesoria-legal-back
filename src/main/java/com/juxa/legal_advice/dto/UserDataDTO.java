@@ -21,6 +21,7 @@ public class UserDataDTO {
     private Boolean isPaid;
     private String createAdt;
     private String userId;
+    private Integer loginCount;
 
     public String getId() {
         return id;
