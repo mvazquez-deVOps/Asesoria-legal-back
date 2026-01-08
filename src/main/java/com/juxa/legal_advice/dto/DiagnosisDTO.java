@@ -7,8 +7,8 @@ import java.util.List;
 public class DiagnosisDTO {
     private String id;
     private UserDataDTO userData;
-    private List<MessageDTO> chatHistory;
+    private List<MessageDTO> history; // <--- Cambia 'chatHistory' por 'history'
     private String status;
     private String folio;
-    private String createdAt; // <-- agregado como String para el mapper actual
+    private String createdAt;
 }

@@ -1,9 +1,8 @@
 package com.juxa.legal_advice.controller;
 
-import com.juxa.legal_advice.model.DiagnosisResponse;
 import com.juxa.legal_advice.model.DiagnosisEntity;
+import com.juxa.legal_advice.model.DiagnosisResponse;
 import com.juxa.legal_advice.model.SubscriptionPlan;
-import com.juxa.legal_advice.repository.DiagnosisRepository;
 import com.juxa.legal_advice.service.DiagnosisService;
 import com.juxa.legal_advice.service.PdfService;
 import lombok.RequiredArgsConstructor;
@@ -17,29 +16,25 @@ public class PdfController {
 
     private final DiagnosisService diagnosisService;
     private final PdfService pdfService;
-    private final DiagnosisRepository diagnosisRepository; // Agregado para buscar el plan
 
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getDiagnosisPdf(@PathVariable Long id) {
-        DiagnosisResponse response = diagnosisService.findResponseById(id);
-        DiagnosisEntity entity = diagnosisRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("No se encontró el diagnóstico con ID: " + id));
+        // 1. Obtenemos la entidad completa desde el servicio (una sola consulta)
+        DiagnosisEntity entity = diagnosisService.findEntityById(id);
 
-        SubscriptionPlan planParaPdf = entity.getPlan();
-        if (planParaPdf == null) {
-            planParaPdf = SubscriptionPlan.SINGLE_DIAGNOSIS;
+        // 2. Generamos la respuesta técnica (IA) basada en esa entidad
+        DiagnosisResponse response = diagnosisService.generateResponse(entity);
 
-        }
+        // 3. Obtenemos el plan con un valor por defecto seguro
+        SubscriptionPlan plan = (entity.getPlan() != null) ? entity.getPlan() : SubscriptionPlan.SINGLE_DIAGNOSIS;
 
-        // AMBOS parámetros al PdfService
-        byte[] pdfBytes = pdfService.generateDiagnosisPdf(response, planParaPdf);
+        // 4. Generamos el PDF
+        byte[] pdfBytes = pdfService.generateDiagnosisPdf(response, plan);
 
+        // 5. Retornamos el archivo
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=diagnosis-" + id + ".pdf")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=dictamen-juxa-" + id + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
 }
-
-
-

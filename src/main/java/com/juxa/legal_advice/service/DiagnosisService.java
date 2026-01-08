@@ -1,11 +1,8 @@
 package com.juxa.legal_advice.service;
 
-import com.juxa.legal_advice.config.JuxaPrices;
 import com.juxa.legal_advice.dto.DiagnosisDTO;
-import com.juxa.legal_advice.dto.MessageDTO; // Asegúrate de importar esto
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.model.DiagnosisResponse;
-import com.juxa.legal_advice.model.Message; // Tu entidad de base de datos para mensajes
 import com.juxa.legal_advice.repository.DiagnosisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,95 +19,93 @@ public class DiagnosisService {
 
     private final DiagnosisRepository diagnosisRepository;
     private final GeminiService geminiService;
-    private final WhatsappService whatsappService;
-
-    public void validarPrecio(double monto, String plan) {
-        // Lógica de validación de pago
-    }
 
     public DiagnosisResponse save(DiagnosisDTO dto) {
         DiagnosisEntity entity = new DiagnosisEntity();
-
         if (dto.getUserData() != null) {
             var userData = dto.getUserData();
-            // Sincronización con el DTO (userId es el uid del Front)
             entity.setUserId(userData.getUserId());
             entity.setName(userData.getName());
             entity.setEmail(userData.getEmail());
-            entity.setPhone(userData.getPhone());
             entity.setCategory(userData.getCategory());
             entity.setSubcategory(userData.getSubcategory());
             entity.setDescription(userData.getDescription());
             entity.setLocation(userData.getLocation());
-            entity.setCounterparty(userData.getCounterparty());
-            entity.setProcessStatus(userData.getProcessStatus());
-            entity.setAmount(userData.getAmount());
-            entity.setDiagnosisPreference(userData.getDiagnosisPreference());
         }
 
-        // --- NUEVA LÓGICA PARA EL HISTORIAL DE CHAT ---
-        if (dto.getHistory() != null && !dto.getHistory().isEmpty()) {
-            // Convertimos los MessageDTO (del Front) a Message (Entidad de BD)
-            List<Message> messageEntities = dto.getHistory().stream().map(mDto -> {
-                Message m = new Message();
-                m.setRole(mDto.getRole());
-                m.setText(mDto.getText()); // Usamos .getText() que arreglamos antes
-                m.setTimestamp(mDto.getTimestamp() != null ? mDto.getTimestamp() : LocalDateTime.now().toString());
-                return m;
-            }).collect(Collectors.toList());
-
-            entity.setHistory(messageEntities); // Guardamos la charla en la entidad
+        if (dto.getHistory() != null) {
+            String historyText = dto.getHistory().stream()
+                    .map(m -> m.getRole() + ": " + m.getText())
+                    .collect(Collectors.joining("\n"));
+            entity.setHistory(historyText);
         }
-        // ----------------------------------------------
 
         entity.setFolio("FOL-" + System.currentTimeMillis());
         entity.setCreatedAt(LocalDateTime.now());
+        entity.setPaid(true);
 
-        DiagnosisEntity saved = diagnosisRepository.save(entity);
-        return generateResponse(saved);
+        return generateResponse(diagnosisRepository.save(entity));
     }
 
-    public DiagnosisDTO findById(String id) {
-        return diagnosisRepository.findById(Long.parseLong(id))
-                .map(this::mapToDTO)
-                .orElse(null);
-    }
+    public void saveFromChat(Map<String, Object> payload, String aiResponse) {
+        try {
+            Map<String, Object> userDataMap = (Map<String, Object>) payload.get("userData");
+            String userMsg = (String) payload.get("message");
 
-    public List<DiagnosisDTO> findByUser(String userId) {
-        return diagnosisRepository.findByUserId(userId)
-                .stream()
-                .map(this::mapToDTO)
-                .toList();
-    }
+            DiagnosisEntity entity = new DiagnosisEntity();
+            if (userDataMap != null) {
+                entity.setName((String) userDataMap.get("name"));
+                entity.setEmail((String) userDataMap.get("email"));
+                entity.setCategory((String) userDataMap.get("category"));
+                entity.setSubcategory((String) userDataMap.get("subcategory"));
+                entity.setDescription((String) userDataMap.get("description"));
+            }
 
-    public List<DiagnosisDTO> findByUserEmail(String email) {
-        return diagnosisRepository.findByEmail(email)
-                .stream()
-                .map(this::mapToDTO)
-                .toList();
+            entity.setHistory("Usuario: " + userMsg + "\nIA: " + aiResponse);
+            entity.setFolio("FOL-CHAT-" + System.currentTimeMillis());
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setPaid(true);
+
+            diagnosisRepository.save(entity);
+        } catch (Exception e) {
+            System.err.println("Error en saveFromChat: " + e.getMessage());
+        }
     }
 
     public DiagnosisResponse generateResponse(DiagnosisEntity entity) {
         String summary = geminiService.generateLegalSummary(entity);
-        var steps = Arrays.asList("Paso 1", "Paso 2");
         return DiagnosisResponse.builder()
                 .diagnosisId(String.valueOf(entity.getId()))
                 .summary(summary)
-                .steps(steps)
+                .steps(Arrays.asList("Consultar abogado experto", "Reunir evidencia"))
                 .build();
+    }
+
+    public List<DiagnosisDTO> findByUser(String userId) {
+        return diagnosisRepository.findByUserId(userId).stream()
+                .map(this::mapToDTO).collect(Collectors.toList());
     }
 
     private DiagnosisDTO mapToDTO(DiagnosisEntity entity) {
         DiagnosisDTO dto = new DiagnosisDTO();
         dto.setId(String.valueOf(entity.getId()));
         dto.setFolio(entity.getFolio());
-        // Aquí podrías mapear también el history si lo necesitas de vuelta en el Front
         return dto;
     }
+    public DiagnosisDTO findById(String id) {
+        return diagnosisRepository.findById(Long.parseLong(id))
+                .map(this::mapToDTO)
+                .orElse(null);
+    }
 
-    public DiagnosisResponse findResponseById(Long id) {
+    public List<DiagnosisDTO> findByUserEmail(String email) {
+        return diagnosisRepository.findByEmail(email).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+    // Agrega este método para que el Controller deje de marcar error
+    public DiagnosisEntity findEntityById(Long id) {
         return diagnosisRepository.findById(id)
-                .map(this::generateResponse)
-                .orElseThrow(() -> new RuntimeException("Diagnóstico no encontrado con ID: " + id));
+                .orElseThrow(() -> new RuntimeException("No se encontró el registro con ID: " + id));
     }
 }

@@ -48,7 +48,8 @@ public class DiagnosisEntity {
         //private boolean isPaid = false;
 
         private boolean isPaid = true;
-        private List<Message> history;
+      @Column(columnDefinition = "TEXT")
+        private String history;
 
 
 
