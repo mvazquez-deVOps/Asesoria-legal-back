@@ -33,36 +33,53 @@ public class DiagnosisService {
         return generateResponse(diagnosisRepository.save(entity));
     }
 
-    // 2. Guardar interacción del chat (EL QUE TE FALTA)
+    // 2. Guardar interacción del chat (VERSIÓN CORREGIDA Y SINCRONIZADA)
     public void saveFromChat(Map<String, Object> payload, String aiResponse) {
         try {
             Map<String, Object> userDataMap = (Map<String, Object>) payload.get("userData");
-            String userMsg = (String) payload.get("message");
-            String userId = (userDataMap != null) ? (String) userDataMap.get("userId") : null;
+
+            // 1. CORRECCIÓN: El Front ahora envía 'currentMessage'
+            String userMsg = (String) payload.get("currentMessage");
+            if (userMsg == null) userMsg = (String) payload.get("message"); // Backup por si acaso
+
+            // 2. CORRECCIÓN: El Front envía 'id', el Back a veces espera 'userId'
+            String userId = null;
+            if (userDataMap != null) {
+                userId = userDataMap.get("id") != null ?
+                        userDataMap.get("id").toString() :
+                        (String) userDataMap.get("userId");
+            }
 
             DiagnosisEntity entity;
-            if (userId != null) {
+            if (userId != null && !userId.isEmpty()) {
                 entity = diagnosisRepository.findFirstByUserIdOrderByCreatedAtDesc(userId)
                         .orElse(new DiagnosisEntity());
             } else {
                 entity = new DiagnosisEntity();
             }
 
+            // Si es nuevo, inicializamos
             if (entity.getId() == null) {
                 entity.setUserId(userId);
                 entity.setCreatedAt(LocalDateTime.now());
-                entity.setPaid(true);
+                entity.setPaid(true); // Permitir que aparezca en el dashboard
             }
 
+            // 3. CORRECCIÓN: Aseguramos que el historial no se pierda
             String historialPrevio = (entity.getHistory() != null) ? entity.getHistory() : "";
-            entity.setHistory(historialPrevio + "Usuario: " + userMsg + "\nIA: " + aiResponse + "\n\n");
+            String nuevaInteraccion = "Usuario: " + (userMsg != null ? userMsg : "Consulta") + "\n" +
+                    "IA: " + aiResponse + "\n\n";
+
+            entity.setHistory(historialPrevio + nuevaInteraccion);
 
             diagnosisRepository.save(entity);
+            System.out.println(" Persistencia exitosa en Cloud SQL para usuario: " + userId);
+
         } catch (Exception e) {
-            System.err.println("Error guardando chat: " + e.getMessage());
+            System.err.println("Error crítico guardando chat: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-
     // 3. Buscar por ID para el controlador
     public DiagnosisDTO findById(String id) {
         return diagnosisRepository.findById(Long.parseLong(id))

@@ -30,20 +30,30 @@ public class AiController {
         return ResponseEntity.ok(Map.of("text", response));
     }
 
-    // CORRECCIÓN: ¡Faltaba esta anotación! Por eso daba 404
+    // CORRECCIÓN: 404
     @PostMapping("/chat")
     public ResponseEntity<?> chat(@RequestBody Map<String, Object> payload) {
+        // 1. Procesamos la respuesta de la IA (Gemini)
+        // El payload ya contiene { chatHistory, userData, currentMessage }
         String aiResponse = geminiService.processInteractiveChat(payload);
 
         try {
+            // 2. Persistencia en Cloud SQL
+            // Importante: Asegúrate que saveFromChat use 'chatHistory' internamente
             diagnosisService.saveFromChat(payload, aiResponse);
         } catch (Exception e) {
-            System.err.println("Error al persistir: " + e.getMessage());
+            // Log de error pero no bloqueamos la respuesta al usuario
+            System.err.println("Error al persistir diagnóstico: " + e.getMessage());
         }
 
+        // 3. Respuesta en formato AiChatResponse (lo que espera el Front)
         return ResponseEntity.ok(Map.of(
                 "text", aiResponse,
-                "suggestions", List.of("¿Cuáles son los plazos?", "¿Qué documentos necesito?")
+                "suggestions", List.of(
+                        "¿Cuáles son los plazos legales?",
+                        "¿Qué documentos debo preparar?",
+                        "¿Cuál es el costo estimado?"
+                )
         ));
     }
-}
+    }
