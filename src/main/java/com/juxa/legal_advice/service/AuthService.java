@@ -28,12 +28,15 @@ public class AuthService {
         // GENERACIÓN DE TOKEN REAL (Ya no más "provisional")
         String token = jwtUtil.generateToken(user.getEmail());
 
-        return AuthResponseDTO.builder()
-                .token(token)
-                .email(user.getEmail())
-                .name(user.getName())
-                .userId(user.getId())
-                .role(user.getRole())
-                .build();
+        // Reemplaza el bloque del return por este:
+        return new AuthResponseDTO(
+                token,
+                user.getId().toString(),
+                user.getEmail(),
+                user.getName(),
+                user.getLoginCount(),
+                user.getRole(),
+                user.getSubscriptionPlan()
+        );
     }
 }
