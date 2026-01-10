@@ -63,36 +63,48 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults()) // Permite que el Front hable con el Back
+                .cors(Customizer.withDefaults())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Públicos: Registro, Login y Diagnóstico inicial
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // 1. AJUSTE: Permitir explícitamente los OPTIONS (Preflight)
+                        // Esto evita que el navegador bloquee el POST antes de que ocurra
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 2. AJUSTE: Usar comodín ** para la autenticación
+                        // Esto evita el 403 si el Front envía una diagonal extra al final
+                        .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
 
-                        // Privados: Todo lo que guarde o lea datos sensibles
                         .requestMatchers("/api/ai/chat").authenticated()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/api/pdf/**").authenticated()
+                        .requestMatchers("/api/auth/update-person-type/**").permitAll()
 
                         .anyRequest().authenticated()
                 )
-                // Usar el filtro único que decidimos (JwtFilter)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
+
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        // Permite tu dominio de Firebase y el local de desarrollo
+
         configuration.setAllowedOrigins(java.util.Arrays.asList(
                 "https://asesoria-legal-juxa-83a12.web.app",
                 "https://asesoria-legal-juxa-83a12.firebaseapp.com",
-                "http://localhost:3000"
+                "http://localhost:3000",
+                "http://localhost:5173" // <--- AGREGAR EL PUERTO DE VITE
         ));
+
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.Arrays.asList("Authorization", "Content-Type", "Accept"));
+
+        // Cambiamos a "*" para permitir cualquier encabezado que envíe el navegador
+        configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
+
         configuration.setAllowCredentials(true);
+        // Exponemos el encabezado de Authorization por si el Front necesita leerlo
+        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
 
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
