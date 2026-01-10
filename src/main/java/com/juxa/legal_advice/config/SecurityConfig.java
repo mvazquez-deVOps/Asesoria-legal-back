@@ -1,4 +1,4 @@
-package com.juxa.legal_advice.config; // Ajusta al package de tu proyecto legal
+package com.juxa.legal_advice.config; //
 
 import com.juxa.legal_advice.repository.UserRepository; // Tu repositorio de Legal
 import com.juxa.legal_advice.security.JwtFilter;       // Tu filtro de Legal
@@ -80,6 +80,23 @@ public class SecurityConfig {
                 // Usar el filtro único que decidimos (JwtFilter)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+    @Bean
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
+        // Permite tu dominio de Firebase y el local de desarrollo
+        configuration.setAllowedOrigins(java.util.Arrays.asList(
+                "https://asesoria-legal-juxa-83a12.web.app",
+                "https://asesoria-legal-juxa-83a12.firebaseapp.com",
+                "http://localhost:3000"
+        ));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowCredentials(true);
+
+        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
 }

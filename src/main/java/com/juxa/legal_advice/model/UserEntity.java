@@ -48,4 +48,6 @@ public class UserEntity {
     @Column(name = "person_type")
     private String personType;
 
+
+
 }

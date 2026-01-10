@@ -4,7 +4,7 @@ import com.juxa.legal_advice.dto.AuthRequestDTO;
 import com.juxa.legal_advice.dto.AuthResponseDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
-import com.juxa.legal_advice.util.JwtUtil;
+import com.juxa.legal_advice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,14 +29,15 @@ public class AuthService {
         String token = jwtUtil.generateToken(user.getEmail());
 
         // Reemplaza el bloque del return por este:
-        return new AuthResponseDTO(
-                token,
-                user.getId().toString(),
-                user.getEmail(),
-                user.getName(),
-                user.getLoginCount(),
-                user.getRole(),
-                user.getSubscriptionPlan()
-        );
-    }
+            return new AuthResponseDTO(
+                    token,
+                    user.getId().toString(),
+                    user.getEmail(),
+                    user.getName(),
+                    user.getLoginCount(),
+                    user.getRole(),
+                    user.getSubscriptionPlan(),
+                    user.getPersonType()
+            );
+        }
 }

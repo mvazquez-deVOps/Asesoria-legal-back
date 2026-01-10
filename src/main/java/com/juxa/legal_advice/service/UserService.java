@@ -6,7 +6,7 @@ import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.dto.UserRegistrationDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
-import com.juxa.legal_advice.util.JwtUtil;
+import com.juxa.legal_advice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

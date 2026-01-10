@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.security;
 
+import com.juxa.legal_advice.security.JwtUtil;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -62,7 +63,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
                 // Validamos que el token coincida con el usuario y no esté expirado
-                if (jwtUtil.validateToken(token, userDetails.getUsername())) {
+                if (jwtUtil.validateToken(token, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
