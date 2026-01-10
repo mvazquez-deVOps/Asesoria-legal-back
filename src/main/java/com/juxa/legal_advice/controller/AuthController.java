@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 
 @RestController
@@ -44,4 +45,14 @@ public class AuthController {
         UserDataDTO user = userService.getUserById(id);
         return ResponseEntity.ok(user);
     }
+    @PutMapping("/update-person-type")
+    public ResponseEntity<?> updatePersonType(@RequestBody Map<String, String> request, Principal principal) {
+        String type = request.get("type");
+        String email = principal.getName();
+
+        userService.updatePersonType(email, type);
+        return ResponseEntity.ok(Map.of("message", "Perfil actualizado correctamente"));
+    }
+
+
 }

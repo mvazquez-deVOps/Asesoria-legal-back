@@ -1,84 +1,48 @@
-package com.juxa.legal_advice.config;
+package com.juxa.legal_advice.config; // Ajusta al package de tu proyecto legal
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.juxa.legal_advice.repository.UserRepository; // Tu repositorio de Legal
+import com.juxa.legal_advice.security.JwtFilter;       // Tu filtro de Legal
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthFilter authFilter;
+    private final JwtFilter jwtFilter;
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return new UserInfoService();
+    public SecurityConfig(JwtFilter jwtFilter) {
+        this.jwtFilter = jwtFilter;
     }
 
+    // 1. Cargar usuarios desde tu tabla de usuarios legal
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                // 1. ACTIVAR CORS con la configuración de abajo
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // 2. Desactivar CSRF (necesario para APIs REST)
-                .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        // 3. Permitir rutas de autenticación
-                        .requestMatchers("/api/auth/**").permitAll()
-                        // 4. Cualquier otra ruta (IA, Diagnoses, etc) requiere el Token
-                        .anyRequest().authenticated()
-                )
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
+    public UserDetailsService userDetailsService(UserRepository userRepository) {
+        return username -> {
+            // Usamos orElseThrow para manejar el Optional correctamente
+            var user = userRepository.findByEmail(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
 
-    // CONFIGURACIÓN DE CORS: Esto es lo que permite que el Front y el Back se hablen
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // Permite orígenes específicos (Localhost y tu App en Firebase)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "https://asesoria-legal-juxa-83a12.web.app",
-                "https://asesoria-legal-juxa-83a12.firebaseapp.com"
-        ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control"));
-        configuration.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
-
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
-        authenticationProvider.setUserDetailsService(userDetailsService());
-        authenticationProvider.setPasswordEncoder(passwordEncoder());
-        return authenticationProvider;
+            return org.springframework.security.core.userdetails.User
+                    .builder()
+                    .username(user.getEmail())
+                    .password(user.getPassword())
+                    .roles(user.getRole()) // Ahora toma 'ADMIN' o 'USER' de la BD automáticamente
+                    .build();
+        };
     }
 
     @Bean
@@ -87,7 +51,35 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationProvider authenticationProvider(UserRepository userRepository) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService(userRepository));
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
+
+    // 2. Configurar los permisos de las rutas legales
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults()) // Permite que el Front hable con el Back
+                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // Públicos: Registro, Login y Diagnóstico inicial
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
+
+                        // Privados: Todo lo que guarde o lea datos sensibles
+                        .requestMatchers("/api/ai/chat").authenticated()
+                        .requestMatchers("/api/diagnoses/**").authenticated()
+                        .requestMatchers("/api/pdf/**").authenticated()
+
+                        .anyRequest().authenticated()
+                )
+                // Usar el filtro único que decidimos (JwtFilter)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
+
 }

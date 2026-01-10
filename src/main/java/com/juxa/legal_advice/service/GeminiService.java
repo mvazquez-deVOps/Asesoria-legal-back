@@ -17,14 +17,22 @@ public class GeminiService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String generateInitialChatResponse(UserDataDTO userData) {
+        String contextoPersona = "el ciudadano";
+        if ("MORAL".equalsIgnoreCase(userData.getUserType())) {
+            contextoPersona = "el representante de la empresa";
+        }
+
         String prompt = String.format(
                 "Eres el Chief Growth Officer y Director Jurídico de JUXA. " +
-                        "Analiza el siguiente caso para el cliente %s:\n" +
+                        "Analiza el siguiente caso para el cliente %s (%s):\n" +
                         "- Hechos relatados: %s\n\n" +
                         "Da un diagnóstico técnico inicial breve y resolutivo.",
                 userData.getName(),
+                contextoPersona,
                 userData.getDescription()
         );
+
+
 
         String fullResponse = geminiClient.callGemini(prompt);
         return extractTextFromResponse(fullResponse);
@@ -68,4 +76,5 @@ public class GeminiService {
             return "Lo siento, hubo un error procesando tu consulta.";
         }
     }
+
 }

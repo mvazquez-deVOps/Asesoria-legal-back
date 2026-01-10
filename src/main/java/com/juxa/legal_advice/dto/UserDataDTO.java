@@ -23,6 +23,7 @@ public class UserDataDTO {
     private String diagnosisPreference;
     private Boolean isPaid;
     private String createdAt;
+    private String updatedAt;
 
 
 

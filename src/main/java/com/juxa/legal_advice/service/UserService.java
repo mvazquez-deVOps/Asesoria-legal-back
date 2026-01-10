@@ -58,7 +58,8 @@ public class UserService {
                 user.getName(),
                 user.getLoginCount(),
                 user.getRole(),
-                user.getSubscriptionPlan()
+                user.getSubscriptionPlan(),
+                user.getPersonType()
         );
     }
 
@@ -105,4 +106,19 @@ public class UserService {
                 })
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
     }
+
+    @Transactional
+    public void updatePersonType(String email, String personType) {
+        // Buscamos al usuario por ID
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("No se pudo encontrar el usuario para actualizar el perfil"));
+
+        // Asignamos el tipo (FISICA o MORAL)
+        user.setPersonType(personType);
+
+        // Guardamos los cambios
+        userRepository.save(user);
+    }
+
+
 }

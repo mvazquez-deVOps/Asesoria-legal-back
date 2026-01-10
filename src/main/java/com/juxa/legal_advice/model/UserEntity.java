@@ -45,4 +45,7 @@ public class UserEntity {
     @Column(name = "subscription_plan")
     private String subscriptionPlan = "FREE"; // Valor por defecto
 
+    @Column(name = "person_type")
+    private String personType;
+
 }
