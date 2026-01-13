@@ -14,7 +14,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-// CORRECCIÓN: Agregué la URL de tu sitio en Firebase para evitar errores de CORS
 @CrossOrigin(origins = {
         "https://asesoria-legal-juxa-83a12.web.app",
         "https://asesoria-legal-juxa-83a12.firebaseapp.com"
@@ -39,10 +38,8 @@ public class AiController {
 
         try {
             // 2. Persistencia en Cloud SQL
-            // Importante: Asegúrate que saveFromChat use 'chatHistory' internamente
             diagnosisService.saveFromChat(payload, aiResponse);
         } catch (Exception e) {
-            // Log de error pero no bloqueamos la respuesta al usuario
             System.err.println("Error al persistir diagnóstico: " + e.getMessage());
         }
 
