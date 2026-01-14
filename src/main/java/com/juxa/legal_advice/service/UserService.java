@@ -119,6 +119,16 @@ public class UserService {
         // Guardamos los cambios
         userRepository.save(user);
     }
+    public void updatePersonTypeById(String id, String type) {
+        // Convertimos el String ID a Long para buscar en la base de datos
+        Long userId = Long.parseLong(id);
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        user.setPersonType(type); // Seteamos "FISICA" o "MORAL"
+        userRepository.save(user); // Guardamos los cambios
+    }
 
 
 }

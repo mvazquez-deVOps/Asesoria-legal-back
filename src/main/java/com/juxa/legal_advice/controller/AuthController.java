@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.*;
+import com.juxa.legal_advice.service.AuthService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,16 +13,16 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
+@RequiredArgsConstructor // Inyecta automáticamente userService y authService
 @CrossOrigin(origins = "*")
 public class AuthController {
 
     private final UserService userService;
+    private final AuthService authService; // <--- AGREGA ESTA LÍNEA PARA QUITAR EL ROJO
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequestDTO credentials) {
         try {
-            // El servicio ahora devolverá un TOKEN REAL
             AuthResponseDTO response = userService.authenticate(credentials);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
@@ -30,10 +31,12 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/register") // <--- AÑADE ESTO
+    @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
         try {
-            return ResponseEntity.ok(userService.register(registration));
+            // Ahora 'authService' ya no marcará error porque está declarado arriba
+            AuthResponseDTO response = authService.register(registration);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Error en registro", "message", e.getMessage()));
@@ -53,6 +56,21 @@ public class AuthController {
         userService.updatePersonType(email, type);
         return ResponseEntity.ok(Map.of("message", "Perfil actualizado correctamente"));
     }
+    @PutMapping("/update-person-type/{id}")
+    public ResponseEntity<?> updatePersonType(@PathVariable String id, @RequestBody Map<String, String> body) {
+        // En el Front me mostraste que envías "personType"
+        String type = body.get("personType");
+
+        try {
+            // Delegamos la lógica al servicio para que el controlador esté limpio
+            userService.updatePersonTypeById(id, type);
+            return ResponseEntity.ok(Map.of("message", "Perfil actualizado correctamente"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "No se pudo actualizar", "message", e.getMessage()));
+        }
+    }
+
 
 
 }

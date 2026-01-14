@@ -2,12 +2,14 @@ package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.dto.AuthRequestDTO;
 import com.juxa.legal_advice.dto.AuthResponseDTO;
+import com.juxa.legal_advice.dto.UserRegistrationDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -15,29 +17,43 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil; // <--- Importante inyectar esto
+    private final JwtUtil jwtUtil;
 
-    public AuthResponseDTO login(AuthRequestDTO request) {
-        UserEntity user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    @Transactional
+    public AuthResponseDTO register(UserRegistrationDTO dto) {
+        // 1. Primero creamos el objeto vacío
+        UserEntity user = new UserEntity();
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Contraseña incorrecta");
-        }
+        // 2. Le pasamos los datos que vienen del Frontend (DTO)
+        user.setName(dto.getName());
+        user.setEmail(dto.getEmail());
+        user.setPhone(dto.getPhone());
 
-        // GENERACIÓN DE TOKEN REAL (Ya no más "provisional")
+        // 3. Encriptamos la contraseña (SEGURIDAD)
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+
+        // 4. AQUÍ VAN LAS LÍNEAS QUE PREGUNTASTE (Valores por defecto)
+        // Esto evita que la base de datos 'diagnosis' rechace el registro
+        user.setPersonType("FISICA");
+        user.setSubscriptionPlan("FREE");
+        user.setLoginCount(0);
+        user.setRole("USER");
+
+        // 5. Ahora sí, guardamos en la base de datos 'diagnosis'
+        userRepository.save(user);
+
+        // 6. Generamos el token para que entre directo
         String token = jwtUtil.generateToken(user.getEmail());
 
-        // Reemplaza el bloque del return por este:
-            return new AuthResponseDTO(
-                    token,
-                    user.getId().toString(),
-                    user.getEmail(),
-                    user.getName(),
-                    user.getLoginCount(),
-                    user.getRole(),
-                    user.getSubscriptionPlan(),
-                    user.getPersonType()
-            );
-        }
+        return new AuthResponseDTO(
+                token,
+                user.getId().toString(),
+                user.getEmail(),
+                user.getName(),
+                user.getLoginCount(),
+                user.getRole(),
+                user.getSubscriptionPlan(),
+                user.getPersonType()
+        );
+    }
 }
