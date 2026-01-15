@@ -18,6 +18,7 @@ import java.util.Map;
 public class GeminiService {
 
     private final GeminiClient geminiClient;
+    private final AiBucketService bucketService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
@@ -58,35 +59,49 @@ public class GeminiService {
 
         return result;
     }
-
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("message");
         List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
 
-        // 👤 CONTEXTO GLOBAL: Rescatamos los datos del usuario que envía el Frontend
-        Map<String, Object> userData = (Map<String, Object>) payload.get("userData");
-        String contextoUsuario = "";
-        if (userData != null) {
-            contextoUsuario = String.format("PERFIL: %s (%s). ASUNTO: %s. DESCRIPCIÓN: %s.",
-                    userData.get("name"), userData.get("userType"), userData.get("subcategory"), userData.get("description"));
+        // 1. OBTENER REGLAS DE ORO (Hoja de Ruta)
+        String reglasJuxa = bucketService.readTextFile("CriticidadMaxima_HojadeRuta.xlsx - Hoja1.csv");
+
+        // 2. BÚSQUEDA SEMÁNTICA EN BUCKET
+        StringBuilder contextoDocumentos = new StringBuilder();
+        List<String> docs = bucketService.listKnowledgeDocuments();
+        for (String doc : docs) {
+            if (currentMessage.toLowerCase().contains(doc.split("\\.")[0].toLowerCase())) {
+                String content = doc.endsWith(".pdf") ?
+                        bucketService.readPdfFile(doc) : bucketService.readTextFile(doc);
+                contextoDocumentos.append("\n--- DOCUMENTO: ").append(doc).append(" ---\n").append(content);
+            }
         }
 
-        String historialTexto = (history != null) ? history.toString() : "Inicio";
+        // 👤 CONTEXTO DEL USUARIO (Mantenemos tu lógica anterior)
+        Map<String, Object> userData = (Map<String, Object>) payload.get("userData");
+        String contextoUsuario = (userData != null) ?
+                String.format("CLIENTE: %s. ASUNTO: %s.", userData.get("name"), userData.get("subcategory")) : "";
 
-        // PROMPT UNIFICADO: Obligamos a la IA a recordar el perfil
-        String prompt = String.format(
-                "Eres JUXA Chat. %s\n" +
-                        "HISTORIAL DE CHARLA: %s.\n" +
-                        "MENSAJE ACTUAL DEL CLIENTE: %s.\n" +
-                        "INSTRUCCIÓN: No repitas preguntas que ya se respondieron en la DESCRIPCIÓN inicial.\n" +
-                        "RESPONDE SOLO JSON: {\"diagnosis\": \"...\", \"suggestions\": [...], \"downloadPdf\": false}",
-                contextoUsuario, historialTexto, currentMessage
+        // 3. PROMPT RAG POTENCIADO
+        String prompt = String.format("""
+                Eres JUXA Chat, experto legal.
+                REGLAS DE MISIÓN (Hoja de Ruta): %s
+                
+                CONOCIMIENTO DEL BUCKET: %s
+                
+                %s. HISTORIAL: %s.
+                MENSAJE ACTUAL: %s.
+                
+                RESPONDE SOLO JSON: {"diagnosis": "...", "suggestions": [...], "downloadPdf": false}
+                """,
+                reglasJuxa, contextoDocumentos, contextoUsuario,
+                history != null ? history.toString() : "Inicio", currentMessage
         );
 
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
-        // Lógica del recordatorio cada 5 mensajes
+        // Mantenemos tu recordatorio cada 5 mensajes
         if (history != null) {
             long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
             if (userQuestions > 0 && userQuestions % 5 == 0) {
@@ -100,6 +115,11 @@ public class GeminiService {
     public String generateLegalSummary(DiagnosisEntity entity) {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
+         // Obtener las reglas y prompts asignados
+        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.xlsx");
+
+        //Busqueda del agente
+
 
         String prompt = """
                 Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
