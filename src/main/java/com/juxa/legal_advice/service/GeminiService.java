@@ -30,13 +30,15 @@ public class GeminiService {
         boolean contextoPobre = descripcion.length() <= 50;
 
         String prompt = String.format(
-                "Eres abogado senior de JUXA. Analiza el caso de %s (%s): %s. " +
+                "Eres abogado senior de JUXA, eres empático y quieres ayudar a resolver" +
+                        "el caso. Analiza el caso de %s (%s): %s. " +
                         (contextoPobre
                                 ? "Genera un diagnóstico inicial breve y 3 preguntas relevantes para guiar al cliente. "
-                                : "Da un diagnóstico inicial breve y sugiere 3 preguntas específicas que el cliente podría hacer. ") +
+                                : "Da un diagnóstico inicial breve y sugiere 3 preguntas específicas que el cliente podría hacerte a ti" +
+                                "para que le des más información. ") +
                         "Responde únicamente en formato JSON válido con tres campos:\n" +
                         "{\n" +
-                        "  \"diagnosis\": \"dictamen breve y técnico (máx 150 caracteres)\",\n" +
+                        "  \"diagnosis\": \"dictamen breve y técnico (máx 220 caracteres)\",\n" +
                         "  \"suggestions\": [\"pregunta 1\", \"pregunta 2\", \"pregunta 3\"],\n" +
                         "  \"downloadPdf\": true\n" +
                         "}\n",
@@ -50,8 +52,8 @@ public class GeminiService {
 
         // Fallback: recortar diagnosis si es muy largo
         String text = (String) result.get("text");
-        if (text != null && text.length() > 150) {
-            result.put("text", text.substring(0, 150) + "...");
+        if (text != null && text.length() > 220) {
+            result.put("text", text.substring(0, 220) + "...");
         }
 
         return result;
@@ -59,35 +61,37 @@ public class GeminiService {
 
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("message");
+        List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
+
+        // 👤 CONTEXTO GLOBAL: Rescatamos los datos del usuario que envía el Frontend
         Map<String, Object> userData = (Map<String, Object>) payload.get("userData");
+        String contextoUsuario = "";
+        if (userData != null) {
+            contextoUsuario = String.format("PERFIL: %s (%s). ASUNTO: %s. DESCRIPCIÓN: %s.",
+                    userData.get("name"), userData.get("userType"), userData.get("subcategory"), userData.get("description"));
+        }
 
-        String descripcion = userData != null ? (String) userData.get("description") : "";
-        boolean contextoPobre = descripcion.length() <= 50;
+        String historialTexto = (history != null) ? history.toString() : "Inicio";
 
+        // PROMPT UNIFICADO: Obligamos a la IA a recordar el perfil
         String prompt = String.format(
-                "Contexto del Cliente: %s. Hechos: %s. Pregunta actual: %s. " +
-                        "Responde como abogado senior de JUXA. " +
-                        (contextoPobre
-                                ? "Genera 3 preguntas relevantes para guiar al cliente. "
-                                : "Además, sugiere 3 preguntas que el cliente podría hacer. ") +
-                        "Responde únicamente en formato JSON válido con tres campos:\n" +
-                        "{\n" +
-                        "  \"diagnosis\": \"dictamen breve y técnico (máx 150 caracteres)\",\n" +
-                        "  \"suggestions\": [\"pregunta 1\", \"pregunta 2\", \"pregunta 3\"],\n" +
-                        "  \"downloadPdf\": true\n" +
-                        "}\n" +
-                        "Cuando el dictamen esté listo para descarga, marca \"downloadPdf\": true.\n" +
-                        "Si aún no está listo, marca \"downloadPdf\": false.\n",
-                userData != null ? userData.get("name") : "Cliente",
-                descripcion,
-                currentMessage
+                "Eres JUXA Chat. %s\n" +
+                        "HISTORIAL DE CHARLA: %s.\n" +
+                        "MENSAJE ACTUAL DEL CLIENTE: %s.\n" +
+                        "INSTRUCCIÓN: No repitas preguntas que ya se respondieron en la DESCRIPCIÓN inicial.\n" +
+                        "RESPONDE SOLO JSON: {\"diagnosis\": \"...\", \"suggestions\": [...], \"downloadPdf\": false}",
+                contextoUsuario, historialTexto, currentMessage
         );
+
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
-        String text = (String) result.get("text");
-        if (text != null && text.length() > 150) {
-            result.put("text", text.substring(0, 150) + "...");
+        // Lógica del recordatorio cada 5 mensajes
+        if (history != null) {
+            long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
+            if (userQuestions > 0 && userQuestions % 5 == 0) {
+                result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
+            }
         }
 
         return result;
@@ -98,10 +102,10 @@ public class GeminiService {
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
 
         String prompt = """
-        Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
-        HECHOS: %s. HISTORIAL: %s.
-        Divide en: 1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
-        """.formatted(hechos, contexto);
+                Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
+                HECHOS: %s. HISTORIAL: %s.
+                Divide en: 1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
+                """.formatted(hechos, contexto);
 
         String fullResponse = geminiClient.callGemini(prompt);
         return extractTextFromResponse(fullResponse);
@@ -111,31 +115,36 @@ public class GeminiService {
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
-            JsonNode textNode = root.path("candidates")
-                    .get(0)
-                    .path("content")
-                    .path("parts")
-                    .get(0)
-                    .path("text");
+            String rawText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
 
-            String rawText = textNode.asText();
+            //  LIMPIEZA: Eliminamos bloques de código markdown (```json ... ```)
+            String cleanJson = rawText.replaceAll("(?s)```json\\s*|```", "").trim();
 
-            if (rawText.trim().startsWith("{")) {
-                JsonNode parsed = objectMapper.readTree(rawText);
+            if (cleanJson.startsWith("{")) {
+                JsonNode parsed = objectMapper.readTree(cleanJson);
+                Map<String, Object> result = new HashMap<>();
 
+                // Extraemos los campos del JSON de la IA
                 String diagnosis = parsed.path("diagnosis").asText();
                 List<String> suggestions = new ArrayList<>();
                 parsed.path("suggestions").forEach(node -> suggestions.add(node.asText()));
+                boolean downloadPdf = parsed.path("downloadPdf").asBoolean();
 
-                Map<String, Object> result = new HashMap<>();
+                // Si el diagnosis viene vacío pero hay sugerencias, usamos la primera como texto
+                if (diagnosis.isEmpty() && !suggestions.isEmpty()) {
+                    diagnosis = suggestions.get(0);
+                }
+
                 result.put("text", diagnosis);
                 result.put("suggestions", suggestions);
+                result.put("downloadPdf", downloadPdf);
                 return result;
             }
 
-            return Map.of("text", rawText, "suggestions", List.of());
+            // Si no es JSON, devolvemos el texto plano
+            return Map.of("text", rawText, "suggestions", List.of(), "downloadPdf", false);
         } catch (Exception e) {
-            return Map.of("text", "Lo siento, hubo un error procesando tu consulta.", "suggestions", List.of());
+            return Map.of("text", "Error al procesar la respuesta legal.", "suggestions", List.of());
         }
     }
 
