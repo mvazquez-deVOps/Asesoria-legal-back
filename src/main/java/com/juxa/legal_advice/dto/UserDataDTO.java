@@ -1,8 +1,12 @@
 package com.juxa.legal_advice.dto;
 
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
+@AllArgsConstructor
 public class UserDataDTO {
     private String id;
     private String userId;
@@ -21,20 +25,15 @@ public class UserDataDTO {
     private Boolean hasChildren;
     private Boolean hasViolence;
     private String diagnosisPreference;
-    private Boolean isPaid;
     private String createdAt;
     private String updatedAt;
 
 
+    private Boolean isPais = false;
 
-
-    public Boolean getPaid() {
-        return isPaid;
+    public long getAmountInCents() {
+        if (this.amount == null) return 0L;
+        return(long) (Double.parseDouble(this.amount)*100);
     }
-
-    public void setPaid(Boolean paid) {
-        isPaid = paid;
-    }
-
 
 }

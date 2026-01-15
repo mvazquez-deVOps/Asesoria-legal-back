@@ -17,7 +17,8 @@ import java.util.Map;
 // CORRECCIÓN: Agregué la URL de tu sitio en Firebase para evitar errores de CORS
 @CrossOrigin(origins = {
         "https://asesoria-legal-juxa-83a12.web.app",
-        "https://asesoria-legal-juxa-83a12.firebaseapp.com"
+        "https://asesoria-legal-juxa-83a12.firebaseapp.com",
+        "http://localhost:57713"
 })
 public class AiController {
 

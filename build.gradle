@@ -43,6 +43,14 @@ dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
+	//STRIPE
+	implementation 'com.stripe:stripe-java:24.0.0'
+
+	//BUCKET
+	implementation 'com.google.cloud:spring-cloud-gcp-starter-storage:5.0.0'
+    // para lectura de pdf
+	implementation 'org.apache.pdfbox:pdfbox:2.0.30'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
