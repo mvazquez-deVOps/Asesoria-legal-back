@@ -36,7 +36,7 @@ public class AiBucketService {
         for (Blob blob : blobs.iterateAll()) {
             String name = blob.getName();
             // Evitamos procesar la hoja de ruta como documento de consulta técnica
-            if (!name.contains("HojadeRita")) {
+            if (!name.contains("Hoja_deRita")) {
                 files.add(name);
             }
         }

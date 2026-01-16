@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
+import com.juxa.legal_advice.util.PromptBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
@@ -22,51 +23,28 @@ public class GeminiService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
-        String contextoPersona = "el ciudadano";
-        if ("MORAL".equalsIgnoreCase(userData.getUserType())) {
-            contextoPersona = "el representante de la empresa";
-        }
+        String contextoPersona = "MORAL".equalsIgnoreCase(userData.getUserType()) ?
+            contextoPersona = "el representante de la empresa" : "el ciudadano";
 
-        String descripcion = userData.getDescription() != null ? userData.getDescription() : "";
-        boolean contextoPobre = descripcion.length() <= 50;
-
-        String prompt = String.format(
-                "Eres abogado senior de JUXA, eres empático y quieres ayudar a resolver" +
-                        "el caso. Analiza el caso de %s (%s): %s. " +
-                        (contextoPobre
-                                ? "Genera un diagnóstico inicial breve y 3 preguntas relevantes para guiar al cliente. "
-                                : "Da un diagnóstico inicial breve y sugiere 3 preguntas específicas que el cliente podría hacerte a ti" +
-                                "para que le des más información. ") +
-                        "Responde únicamente en formato JSON válido con tres campos:\n" +
-                        "{\n" +
-                        "  \"diagnosis\": \"dictamen breve y técnico (máx 220 caracteres)\",\n" +
-                        "  \"suggestions\": [\"pregunta 1\", \"pregunta 2\", \"pregunta 3\"],\n" +
-                        "  \"downloadPdf\": true\n" +
-                        "}\n",
-                userData.getName(),
-                contextoPersona,
-                descripcion
-        );
+        String prompt = PromptBuilder.buildInitialDiagnosisPrompt(userData, contextoPersona);
 
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
-        // Fallback: recortar diagnosis si es muy largo
         String text = (String) result.get("text");
         if (text != null && text.length() > 220) {
             result.put("text", text.substring(0, 220) + "...");
         }
-
         return result;
     }
+
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("message");
         List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
+        Map<String, Object> userDataMap = (Map<String, Object>) payload.get("userData");
 
-        // 1. OBTENER REGLAS DE ORO (Hoja de Ruta)
-        String reglasJuxa = bucketService.readTextFile("CriticidadMaxima_HojadeRuta.xlsx - Hoja1.csv");
+        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
 
-        // 2. BÚSQUEDA SEMÁNTICA EN BUCKET
         StringBuilder contextoDocumentos = new StringBuilder();
         List<String> docs = bucketService.listKnowledgeDocuments();
         for (String doc : docs) {
@@ -77,25 +55,16 @@ public class GeminiService {
             }
         }
 
-        // 👤 CONTEXTO DEL USUARIO (Mantenemos tu lógica anterior)
-        Map<String, Object> userData = (Map<String, Object>) payload.get("userData");
-        String contextoUsuario = (userData != null) ?
-                String.format("CLIENTE: %s. ASUNTO: %s.", userData.get("name"), userData.get("subcategory")) : "";
+        String contextoUsuario = (userDataMap != null) ?
+                String.format("CLIENTE: %s. ASUNTO: %s.", userDataMap.get("name"), userDataMap.get("subcategory")) : "";
 
         // 3. PROMPT RAG POTENCIADO
-        String prompt = String.format("""
-                Eres JUXA Chat, experto legal.
-                REGLAS DE MISIÓN (Hoja de Ruta): %s
-                
-                CONOCIMIENTO DEL BUCKET: %s
-                
-                %s. HISTORIAL: %s.
-                MENSAJE ACTUAL: %s.
-                
-                RESPONDE SOLO JSON: {"diagnosis": "...", "suggestions": [...], "downloadPdf": false}
-                """,
-                reglasJuxa, contextoDocumentos, contextoUsuario,
-                history != null ? history.toString() : "Inicio", currentMessage
+        String prompt = PromptBuilder.buildInteractiveChatPrompt(
+                reglasJuxa,
+                contextoDocumentos.toString(),
+                contextoUsuario,
+                history != null ? history.toString() : "Inicio",
+                currentMessage
         );
 
         String fullResponse = geminiClient.callGemini(prompt);
@@ -116,16 +85,16 @@ public class GeminiService {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
          // Obtener las reglas y prompts asignados
-        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.xlsx");
+        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
 
         //Busqueda del agente
 
 
-        String prompt = """
+        String prompt = String.format( """
                 Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
                 HECHOS: %s. HISTORIAL: %s.
                 Divide en: 1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
-                """.formatted(hechos, contexto);
+                """, reglasJuxa, hechos, contexto);
 
         String fullResponse = geminiClient.callGemini(prompt);
         return extractTextFromResponse(fullResponse);
