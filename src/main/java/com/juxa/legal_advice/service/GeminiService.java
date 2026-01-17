@@ -21,6 +21,8 @@ public class GeminiService {
     private final GeminiClient geminiClient;
     private final AiBucketService bucketService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final VertexSearchService vertexSearchService;
+
 
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
         String contextoPersona = "MORAL".equalsIgnoreCase(userData.getUserType()) ?
@@ -28,16 +30,18 @@ public class GeminiService {
 
         String prompt = PromptBuilder.buildInitialDiagnosisPrompt(userData, contextoPersona);
 
+
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
         String text = (String) result.get("text");
-        if (text != null && text.length() > 220) {
-            result.put("text", text.substring(0, 220) + "...");
+        if (text != null && text.length() > 500) {
+            result.put("text", text.substring(0, 500) + "...");
         }
         return result;
     }
 
+    /* Esta versión se utilizaba cuando se requería buscar archivo por archivo
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
         String currentMessage = (String) payload.get("message");
         List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
@@ -71,6 +75,49 @@ public class GeminiService {
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
         // Mantenemos tu recordatorio cada 5 mensajes
+        if (history != null) {
+            long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
+            if (userQuestions > 0 && userQuestions % 5 == 0) {
+                result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
+            }
+        }
+
+        return result;
+    }
+*/
+    public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
+        // 1. Seguimos extrayendo los datos básicos
+        String currentMessage = (String) payload.get("message");
+        List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
+        UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
+
+        // 2. REGLAS DE MISIÓN: Seguimos leyendo la Hoja_deRita manualmente
+        // porque contiene las INSTRUCCIONES de comportamiento, no conocimiento genérico.
+        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv ");
+
+        // 3. CONOCIMIENTO TÉCNICO
+        // En una sola línea, obtenemos solo los fragmentos relevantes de toda la biblioteca.
+        String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
+
+        System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
+
+        // 4. CONTEXTO DE USUARIO
+        String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s. PREFERENCIA: %s.",
+                userData.getName(), userData.getSubcategory(), userData.getDiagnosisPreference());
+
+        // 5. PROMPT MAESTRO: Enviamos a Gemini las reglas + los fragmentos exactos
+        String prompt = PromptBuilder.buildInteractiveChatPrompt(
+                reglasJuxa,
+                contextoLegal,
+                contextoUsuario,
+                history != null ? history.toString() : "Inicio",
+                currentMessage
+        );
+
+        String fullResponse = geminiClient.callGemini(prompt);
+        Map<String, Object> result = extractStructuredResponse(fullResponse);
+
+        // 6. UX: Mantenemos tu lógica de recordatorio cada 5 mensajes
         if (history != null) {
             long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
             if (userQuestions > 0 && userQuestions % 5 == 0) {

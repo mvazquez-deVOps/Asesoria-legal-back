@@ -11,5 +11,6 @@ public class PaymentRequestDTO {
     private UserDataDTO userDataDTO;
 
     public UserDataDTO getUserData() {
+        return this.userDataDTO; //
     }
 }

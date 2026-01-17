@@ -51,6 +51,9 @@ dependencies {
     // para lectura de pdf
 	implementation 'org.apache.pdfbox:pdfbox:2.0.30'
 
+	//Implementación para VERTEX
+	implementation 'com.google.cloud:google-cloud-discoveryengine:0.34.0'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 

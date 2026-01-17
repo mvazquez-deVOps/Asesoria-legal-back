@@ -30,7 +30,7 @@ public class DiagnosisEntity {
     @Column(name = "plan")
     private SubscriptionPlan plan = SubscriptionPlan.SINGLE_DIAGNOSIS;
 
-    @Builder.Default // Esto quita el warning y el posible error de compilación
+    @Builder.Default
     private boolean isPaid = true;
 
     @Column(name = "created_at")

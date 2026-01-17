@@ -1,19 +1,20 @@
 package com.juxa.legal_advice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class UserDataDTO {
     private String id;
     private String userId;
     private String name;
     private String email;
-    private Integer loginCount;
     private String phone;
+    //Campos opcionales para "Rapida", el usuario podrá seleccionar Omitir, sólo en rápida
+    private Integer loginCount;
     private String userType;
     private String category;
     private String subcategory;
@@ -28,7 +29,7 @@ public class UserDataDTO {
     private String createdAt;
     private String updatedAt;
 
-
+    @Builder.Default
     private Boolean isPais = false;
 
     public long getAmountInCents() {

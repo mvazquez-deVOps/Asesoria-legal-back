@@ -24,7 +24,7 @@ public class PdfService {
 
             // ENCABEZADO
             String headerText = (plan == SubscriptionPlan.BUSINESS_PLAN)
-                    ? "INFORME CORPORATIVO - JUXA" : "PLAN DE ACCIÓN JURÍDICA - JUXA";
+                    ? "DIAGNÓSTICO LEGAL- JUXA" : "PLAN DE ACCIÓN JURÍDICA - JUXA";
 
             document.add(new Paragraph(headerText, titleFont));
             document.add(new Paragraph("Referencia: #" + response.getDiagnosisId(), bodyFont));
