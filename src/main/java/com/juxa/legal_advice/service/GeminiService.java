@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.juxa.legal_advice.dto.UserDataDTO;
@@ -20,7 +21,7 @@ public class GeminiService {
 
     private final GeminiClient geminiClient;
     private final AiBucketService bucketService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final VertexSearchService vertexSearchService;
 
 
@@ -93,7 +94,7 @@ public class GeminiService {
 
         // 2. REGLAS DE MISIÓN: Seguimos leyendo la Hoja_deRita manualmente
         // porque contiene las INSTRUCCIONES de comportamiento, no conocimiento genérico.
-        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv ");
+        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
 
         // 3. CONOCIMIENTO TÉCNICO
         // En una sola línea, obtenemos solo los fragmentos relevantes de toda la biblioteca.

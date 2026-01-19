@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 @Getter
@@ -7,6 +8,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserDataDTO {
     private String id;
     private String userId;
@@ -28,9 +30,10 @@ public class UserDataDTO {
     private String diagnosisPreference;
     private String createdAt;
     private String updatedAt;
+    private String personType;
 
     @Builder.Default
-    private Boolean isPais = false;
+    private Boolean isPaid = false;
 
     public long getAmountInCents() {
         if (this.amount == null) return 0L;
