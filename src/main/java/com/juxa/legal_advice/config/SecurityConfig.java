@@ -94,12 +94,14 @@ public class SecurityConfig {
                 "https://asesoria-legal-juxa-83a12.web.app",
                 "https://asesoria-legal-juxa-83a12.firebaseapp.com",
                 "http://localhost:3000",
-                "http://localhost:5173" // <--- AGREGAR EL PUERTO DE VITE
+                "http://localhost:5173",
+                "http://172.26.16.1:3000",
+                "http://192.168.11.235:3000"
         ));
 
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-        // Cambiamos a "*" para permitir cualquier encabezado que envíe el navegador
+        // Permite * cualquier encabezado que envíe el navegador
         configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
 
         configuration.setAllowCredentials(true);
