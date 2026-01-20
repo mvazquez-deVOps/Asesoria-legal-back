@@ -108,11 +108,9 @@ public class GeminiService {
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
 
         // 2. REGLAS DE MISIÓN
-        // Asegúrate de que el nombre del archivo no tenga espacios al final ("Hoja_deRita.csv")
         String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
 
         // 3. CONOCIMIENTO TÉCNICO (CAMBIO CRÍTICO AQUÍ)
-        // Validamos que currentMessage no sea nulo ni esté vacío para evitar el Error 400
         String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
         System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
 
@@ -125,26 +123,22 @@ public class GeminiService {
                 reglasJuxa,
                 contextoLegal,
                 contextoUsuario,
-                history != null ? history.toString() : "Inicio",
-                (currentMessage != null) ? currentMessage : "Hola" // Evita enviar null al prompt
-        );
+                history.isEmpty() ? "Inicio" : history.toString(),
+                currentMessage);
 
-        String fullResponse = geminiClient.callGemini(prompt);
+
+                String fullResponse = geminiClient.callGemini(prompt);
 
         // 6. EXTRACCIÓN ESTRUCTURADA
-        // Asegúrate de haber reemplazado también el método extractStructuredResponse
-        // para que busque la llave "text" en lugar de "diagnosis".
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
         // 7. UX: Lógica de recordatorio
-        if (history != null) {
-            long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
-            if (userQuestions > 0 && userQuestions % 5 == 0) {
-                result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
-            }
-        }
-
-        return result;
+        long userQuestions = history.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .count();
+        if (userQuestions > 0 && userQuestions % 5 == 0) {
+            result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
+        }return result;
     }
     public String generateLegalSummary(DiagnosisEntity entity) {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
