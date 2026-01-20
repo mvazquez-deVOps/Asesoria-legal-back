@@ -94,14 +94,13 @@ public class GeminiService {
             currentMessage = "Continuar con el análisis legal";
         }
 
-        List<Map<String, Object>> history = new ArrayList<>();
+        List<Map<String,Object>> history = new ArrayList<>();
         Object rawHistory = payload.get("history");
         if (rawHistory instanceof List<?>) {
-            try {
-                history = objectMapper.convertValue(rawHistory, List.class);
-            } catch (Exception e) {
-                System.err.println("DEBUG - Error convirtiendo history: " + e.getMessage());
-                history = new ArrayList<>();
+            for (Object item : (List<?>) rawHistory) {
+                if (item instanceof Map<?,?>) {
+                    history.add((Map<String,Object>) item);
+                }
             }
         }
 
@@ -115,8 +114,15 @@ public class GeminiService {
         System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
 
         // 4. CONTEXTO DE USUARIO
+        String subcategory = userData.getSubcategory() != null ? userData.getSubcategory() : "Sin categoría";
+        String preference = userData.getDiagnosisPreference() != null ? userData.getDiagnosisPreference() : "Sin preferencia";
+        String name = userData.getName() != null ? userData.getName() : "Desconocido";
+
         String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s. PREFERENCIA: %s.",
-                userData.getName(), userData.getSubcategory(), userData.getDiagnosisPreference());
+                name,
+                subcategory,
+                preference);
+
 
         // 5. PROMPT MAESTRO
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
