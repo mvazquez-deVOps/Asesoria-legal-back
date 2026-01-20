@@ -14,11 +14,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-// CORRECCIÓN: Agregué la URL de tu sitio en Firebase para evitar errores de CORS
 @CrossOrigin(origins = {
         "https://asesoria-legal-juxa-83a12.web.app",
         "https://asesoria-legal-juxa-83a12.firebaseapp.com",
-        "http://localhost:57713"
+        "http://localhost:57713",
+        "http://localhost:3000"
 })
 public class AiController {
 
@@ -33,24 +33,32 @@ public class AiController {
 
     @PostMapping("/chat")
     public ResponseEntity<Map<String, Object>> chat(@RequestBody Map<String, Object> payload) {
-        // 1. Procesamos la respuesta de la IA (Gemini)
-        Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
-        String aiText = (String) aiResponse.get("text");
-        List<String> aiSuggestions = (List<String>) aiResponse.get("suggestions");
-        Boolean downloadPdf = (Boolean) aiResponse.getOrDefault("downloadPdf", false);
-
         try {
-            // 2. Persistencia en Cloud SQL
-            diagnosisService.saveFromChat(payload, aiText);
-        } catch (Exception e) {
-            System.err.println("Error al persistir diagnóstico: " + e.getMessage());
-        }
+            // 1. Procesamos la respuesta de la IA (Gemini)
+            Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
+            String aiText = (String) aiResponse.get("text");
+            List<String> aiSuggestions = (List<String>) aiResponse.get("suggestions");
+            Boolean downloadPdf = (Boolean) aiResponse.getOrDefault("downloadPdf", false);
 
-        // 3. Respuesta en formato AiChatResponse (lo que espera el Front)
-        return ResponseEntity.ok(Map.of(
-                "text", aiText,
-                "suggestions", aiSuggestions,
-                "downloadPdf", downloadPdf
-        ));
+            try {
+                // 2. Persistencia en Cloud SQL
+                diagnosisService.saveFromChat(payload, aiText);
+            } catch (Exception e) {
+                System.err.println("Error al persistir diagnóstico: " + e.getMessage());
+            }
+
+            // 3. Respuesta en formato AiChatResponse (lo que espera el Front)
+            return ResponseEntity.ok(Map.of(
+                    "text", aiText,
+                    "suggestions", aiSuggestions,
+                    "downloadPdf", downloadPdf
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "No se pudo procesar la consulta con Gemini",
+                    "details", e.getMessage()
+            ));
+        }
     }
 }

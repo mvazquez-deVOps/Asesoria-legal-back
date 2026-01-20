@@ -51,16 +51,18 @@ public class UserService {
         String token = jwtUtil.generateToken(user.getEmail());
 
         // 6. Construir respuesta (Asegúrate que tu DTO AuthResponseDTO tenga este constructor)
-        return new AuthResponseDTO(
-                token,
-                user.getId().toString(),
-                user.getEmail(),
-                user.getName(),
-                user.getLoginCount(),
-                user.getRole(),
-                user.getSubscriptionPlan(),
-                user.getPersonType()
-        );
+        return AuthResponseDTO.builder()
+                .token(token)
+                .userId(user.getId().toString())
+                .email(user.getEmail())
+                .name(user.getName())
+                .loginCount(user.getLoginCount())
+                .role(user.getRole())
+                .subscriptionPlan(user.getSubscriptionPlan())
+                .personType(user.getPersonType())
+                .phone(user.getPhone()) // si lo tienes en la entidad
+                .build();
+
     }
 
     /**

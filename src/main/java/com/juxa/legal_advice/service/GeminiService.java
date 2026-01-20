@@ -87,18 +87,20 @@ public class GeminiService {
     }
 */
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
-        // 1. Seguimos extrayendo los datos básicos
+        // 1. Extraemos los datos básicos
         String currentMessage = (String) payload.get("message");
         List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
 
-        // 2. REGLAS DE MISIÓN: Seguimos leyendo la Hoja_deRita manualmente
-        // porque contiene las INSTRUCCIONES de comportamiento, no conocimiento genérico.
+        // 2. REGLAS DE MISIÓN
+        // Asegúrate de que el nombre del archivo no tenga espacios al final ("Hoja_deRita.csv")
         String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
 
-        // 3. CONOCIMIENTO TÉCNICO
-        // En una sola línea, obtenemos solo los fragmentos relevantes de toda la biblioteca.
-        String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
+        // 3. CONOCIMIENTO TÉCNICO (CAMBIO CRÍTICO AQUÍ)
+        // Validamos que currentMessage no sea nulo ni esté vacío para evitar el Error 400
+        String contextoLegal = (currentMessage != null && !currentMessage.trim().isEmpty())
+                ? vertexSearchService.searchLegalKnowledge(currentMessage)
+                : "Inicio de conversación técnica."; // Fallback para el primer mensaje
 
         System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
 
@@ -106,19 +108,23 @@ public class GeminiService {
         String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s. PREFERENCIA: %s.",
                 userData.getName(), userData.getSubcategory(), userData.getDiagnosisPreference());
 
-        // 5. PROMPT MAESTRO: Enviamos a Gemini las reglas + los fragmentos exactos
+        // 5. PROMPT MAESTRO
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
                 reglasJuxa,
                 contextoLegal,
                 contextoUsuario,
                 history != null ? history.toString() : "Inicio",
-                currentMessage
+                (currentMessage != null) ? currentMessage : "Hola" // Evita enviar null al prompt
         );
 
         String fullResponse = geminiClient.callGemini(prompt);
+
+        // 6. EXTRACCIÓN ESTRUCTURADA
+        // Asegúrate de haber reemplazado también el método extractStructuredResponse
+        // para que busque la llave "text" en lugar de "diagnosis".
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
-        // 6. UX: Mantenemos tu lógica de recordatorio cada 5 mensajes
+        // 7. UX: Lógica de recordatorio
         if (history != null) {
             long userQuestions = history.stream().filter(m -> "user".equals(m.get("role"))).count();
             if (userQuestions > 0 && userQuestions % 5 == 0) {
@@ -128,7 +134,6 @@ public class GeminiService {
 
         return result;
     }
-
     public String generateLegalSummary(DiagnosisEntity entity) {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
@@ -149,39 +154,38 @@ public class GeminiService {
     }
 
     // Nuevo extractor estructurado: diagnosis + suggestions
+    // GeminiService.java
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
             String rawText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
 
-            //  LIMPIEZA: Eliminamos bloques de código markdown (```json ... ```)
-            String cleanJson = rawText.replaceAll("(?s)```json\\s*|```", "").trim();
+            // Buscamos las llaves { } reales, ignorando cualquier texto extra de Gemini
+            int start = rawText.indexOf("{");
+            int end = rawText.lastIndexOf("}");
 
-            if (cleanJson.startsWith("{")) {
+            if (start != -1 && end != -1) {
+                String cleanJson = rawText.substring(start, end + 1);
                 JsonNode parsed = objectMapper.readTree(cleanJson);
                 Map<String, Object> result = new HashMap<>();
 
-                // Extraemos los campos del JSON de la IA
-                String diagnosis = parsed.path("diagnosis").asText();
-                List<String> suggestions = new ArrayList<>();
-                parsed.path("suggestions").forEach(node -> suggestions.add(node.asText()));
-                boolean downloadPdf = parsed.path("downloadPdf").asBoolean();
+                // SINCRONIZACIÓN: Leemos "text" porque es lo que pide el PromptBuilder
+                String responseText = parsed.has("text") ? parsed.path("text").asText() : parsed.path("diagnosis").asText();
+                result.put("text", responseText);
 
-                // Si el diagnosis viene vacío pero hay sugerencias, usamos la primera como texto
-                if (diagnosis.isEmpty() && !suggestions.isEmpty()) {
-                    diagnosis = suggestions.get(0);
+                List<String> suggestions = new ArrayList<>();
+                if (parsed.has("suggestions")) {
+                    parsed.path("suggestions").forEach(node -> suggestions.add(node.asText()));
                 }
 
-                result.put("text", diagnosis);
+                result.put("text", responseText);
                 result.put("suggestions", suggestions);
-                result.put("downloadPdf", downloadPdf);
+                result.put("downloadPdf", parsed.path("downloadPdf").asBoolean());
                 return result;
             }
-
-            // Si no es JSON, devolvemos el texto plano
             return Map.of("text", rawText, "suggestions", List.of(), "downloadPdf", false);
         } catch (Exception e) {
-            return Map.of("text", "Error al procesar la respuesta legal.", "suggestions", List.of());
+            return Map.of("text", "Error de formato en la respuesta legal.", "suggestions", List.of());
         }
     }
 

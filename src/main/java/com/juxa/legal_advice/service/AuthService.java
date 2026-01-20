@@ -45,15 +45,17 @@ public class AuthService {
         // 6. Generamos el token para que entre directo
         String token = jwtUtil.generateToken(user.getEmail());
 
-        return new AuthResponseDTO(
-                token,
-                user.getId().toString(),
-                user.getEmail(),
-                user.getName(),
-                user.getLoginCount(),
-                user.getRole(),
-                user.getSubscriptionPlan(),
-                user.getPersonType()
-        );
+        return AuthResponseDTO.builder()
+                .token(token)
+                .userId(user.getId().toString())
+                .email(user.getEmail())
+                .name(user.getName())
+                .loginCount(user.getLoginCount())
+                .role(user.getRole())
+                .subscriptionPlan(user.getSubscriptionPlan())
+                .personType(user.getPersonType())
+                .phone(user.getPhone()) // si agregaste el campo en el DTO
+                .build();
     }
+
 }

@@ -47,31 +47,33 @@
             String descripcion = (userData.getDescription() != null) ? userData.getDescription() : "";
             boolean esNuevoChat = descripcion.isEmpty() || descripcion.length() < 15;
 
-            String misiónLegal = esNuevoChat
+            String misionLegal = esNuevoChat
                     ? "MISION: Presenta el Aviso de Transparencia de JUXA.IO. Explica que eres una IA, que la finalidad es informativa y que se recomienda supervisión humana."
                     : "MISION: Realiza un triaje legal empático y profesional basado en los hechos narrados.";
 
             return String.format("""
-            %s
-            
-            %s
-            
-            INTEROLOCUTOR ACTUAL: %s.
-          
-            
-            REGLA DE SALIDA: No uses puntos suspensivos (...) para cortar ideas. Termina tus párrafos e ideas.
-            INSTRUCCIÓN FINAL: Dirígete a %s por su nombre y háblale de tú.\s
-                                            RESPONDE ÚNICAMENTE EN JSON.
-                                            ""\",
-            {
-              "text": "Tu mensaje inicial incluyendo el disclaimer legal y análisis empático...",
-              "suggestions": ["Pregunta sobre dato faltante 1", "Pregunta 2", "Pregunta 3"],
-              "downloadPdf": %b
-            }
-            """,
-                    String.format(JUXIA_BASE_INSTRUCTIONS, userData.getName()),
-                    misiónLegal, userData.getName(), contextoPersona, descripcion,
-                    "dictamen".equalsIgnoreCase(userData.getDiagnosisPreference()));
+        %s
+
+        %s
+
+        INTERLOCUTOR ACTUAL: %s.
+
+        INSTRUCCIÓN FINAL:
+        - Dirígete a %s por su nombre y háblale de tú.
+        - RESPONDE ÚNICAMENTE EN JSON con este formato exacto:
+
+        {
+          "text": "Mensaje de 400-500 caracteres hablando de TÚ al usuario...",
+          "suggestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+          "downloadPdf": %b
+        }
+        """,
+                    JUXIA_BASE_INSTRUCTIONS,
+                    misionLegal,
+                    userData.getName(),
+                    contextoPersona,
+                    "dictamen".equalsIgnoreCase(userData.getDiagnosisPreference())
+            );
         }
         /**
          * Prompt para el Chat Interactivo (Optimizado para RAG con Vertex AI)
@@ -81,29 +83,30 @@
                 String historial, String mensajeActual) {
 
             return String.format("""
-            %s
-            
-            REGLAS (Hoja_deRita): %s
-            CONOCIMIENTO TÉCNICO (RAG): %s
-            CONTEXTO CLIENTE: %s
-            HISTORIAL: %s
-            MENSAJE ACTUAL DEL USUARIO: "%s"
-            
-            INSTRUCCIÓN ESPECIAL (BOTÓN DE ALERTA):
-            Si detectas extrema gravedad (orden de aprehensión, violencia física o plazos que vencen hoy), 
-            debes iniciar el campo 'text' con: " ESTA ES UNA CONSULTA CRÍTICA. JUXA.IO LE INSTA A CONTACTAR A UN ABOGADO DE INMEDIATO."
-            
-            INSTRUCCIÓN DE SALIDA:
-            - Brinda un análisis extenso en 'text' siguiendo el método de Lectura Fácil.
-            - Ofrece ÚNICAMENTE 3 sugerencias sobre información que el usuario aún NO ha proporcionado.
-            
-            {
-              "text": "Respuesta detallada y empática...",
-              "suggestions": ["Pregunta crítica 1", "Pregunta 2", "Pregunta 3"],
-              "downloadPdf": false
-            }
-            """,
-                    JUXIA_BASE_INSTRUCTIONS, reglasHojaDeRuta, contextoDocs, contextoUsuario, historial, mensajeActual);
+        %s
+
+        REGLAS (Hoja_deRita): %s
+        CONOCIMIENTO TÉCNICO (RAG): %s
+        CONTEXTO CLIENTE: %s
+        HISTORIAL: %s
+        MENSAJE ACTUAL DEL USUARIO: "%s"
+
+        INSTRUCCIÓN ESPECIAL (BOTÓN DE ALERTA):
+        Si detectas extrema gravedad (orden de aprehensión, violencia física o plazos que vencen hoy),
+        debes iniciar el campo 'text' con:
+        "ESTA ES UNA CONSULTA CRÍTICA. JUXA.IO LE INSTA A CONTACTAR A UN ABOGADO DE INMEDIATO."
+
+        INSTRUCCIÓN DE SALIDA:
+        - RESPONDE ÚNICAMENTE EN JSON con este formato exacto:
+
+        {
+          "text": "Respuesta detallada y empática...",
+          "suggestions": ["Pregunta crítica 1", "Pregunta 2", "Pregunta 3"],
+          "downloadPdf": false
+        }
+        """,
+                    JUXIA_BASE_INSTRUCTIONS, reglasHojaDeRuta, contextoDocs, contextoUsuario, historial, mensajeActual
+            );
         }
         public static String buildHarmonizedPrompt(UserDataDTO user, String contextoLegal) {
             StringBuilder prompt = new StringBuilder();
