@@ -30,7 +30,7 @@
 
         private static final String RESPONSE_FORMAT = """
         REGLAS DE SALIDA (JSON ESTRICTO):
-                1. Campo "text": Análisis empático dirigido a la persona (entre 400 y 500 caracteres).\s
+                1. Campo "text": Análisis empático dirigido a la persona.\s
                                - NO uses puntos suspensivos. Termina la idea.
                             2. Campo "suggestions": Proporciona EXACTAMENTE 3 preguntas (ni más, ni menos).
                                - Las preguntas deben ser directas ("¿Tú...?", "¿Dónde estás...?").
@@ -63,7 +63,7 @@
         - RESPONDE ÚNICAMENTE EN JSON con este formato exacto:
 
         {
-          "text": "Mensaje de 400-500 caracteres hablando de TÚ al usuario...",
+          "text": "Mensaje hablando de TÚ al usuario...",
           "suggestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
           "downloadPdf": %b
         }

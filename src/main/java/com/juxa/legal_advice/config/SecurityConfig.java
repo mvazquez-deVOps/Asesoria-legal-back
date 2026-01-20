@@ -18,12 +18,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
-    private final UserDetailsService userDetailsService; // Inyectamos UserInfoService automáticamente
+    private final UserDetailsService userDetailsService;
 
     public SecurityConfig(JwtFilter jwtFilter, UserDetailsService userDetailsService) {
         this.jwtFilter = jwtFilter;
@@ -52,13 +54,13 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults()) // Activa corsConfigurationSource
+                .cors(Customizer.withDefaults())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
-                        .requestMatchers("/api/ai/chat").authenticated()
+                        .requestMatchers("/api/ai/chat").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/api/pdf/**").authenticated()
                         .anyRequest().authenticated()
@@ -72,19 +74,18 @@ public class SecurityConfig {
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
 
-        // Agregamos todas las URLs de tu frontend
-        configuration.setAllowedOrigins(java.util.Arrays.asList(
+        // Solo orígenes confiables
+        configuration.setAllowedOrigins(Arrays.asList(
                 "https://asesoria-legal-juxa-83a12.web.app",
                 "https://asesoria-legal-juxa-83a12.firebaseapp.com",
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:8080"
         ));
-
-        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(java.util.Arrays.asList("Authorization", "Content-Type", "Accept", "x-requested-with", "Cache-Control"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "x-requested-with", "Cache-Control"));
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
 
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

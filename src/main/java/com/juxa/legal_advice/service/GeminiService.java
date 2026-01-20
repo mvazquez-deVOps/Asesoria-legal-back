@@ -94,7 +94,17 @@ public class GeminiService {
             currentMessage = "Continuar con el análisis legal";
         }
 
-        List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
+        List<Map<String, Object>> history = new ArrayList<>();
+        Object rawHistory = payload.get("history");
+        if (rawHistory instanceof List<?>) {
+            try {
+                history = objectMapper.convertValue(rawHistory, List.class);
+            } catch (Exception e) {
+                System.err.println("DEBUG - Error convirtiendo history: " + e.getMessage());
+                history = new ArrayList<>();
+            }
+        }
+
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
 
         // 2. REGLAS DE MISIÓN
@@ -104,7 +114,6 @@ public class GeminiService {
         // 3. CONOCIMIENTO TÉCNICO (CAMBIO CRÍTICO AQUÍ)
         // Validamos que currentMessage no sea nulo ni esté vacío para evitar el Error 400
         String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
-
         System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
 
         // 4. CONTEXTO DE USUARIO
