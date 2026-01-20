@@ -36,13 +36,14 @@ public class DiagnosisService {
     // 2. Guardar interacción del chat (VERSIÓN CORREGIDA Y SINCRONIZADA)
     public void saveFromChat(Map<String, Object> payload, String aiResponse) {
         try {
+            // 1. Extraemos el mensaje usando el nombre estándar 'message'
+            String userMsg = (String) payload.get("message");
+
+            // 2. Si el front enviara 'currentMessage' (por compatibilidad), lo capturamos
+            if (userMsg == null) userMsg = (String) payload.get("currentMessage");
+
+            // 3. Extracción segura del userId (buscando 'id' o 'userId')
             Map<String, Object> userDataMap = (Map<String, Object>) payload.get("userData");
-
-            // 1. CORRECCIÓN: El Front ahora envía 'currentMessage'
-            String userMsg = (String) payload.get("currentMessage");
-            if (userMsg == null) userMsg = (String) payload.get("message"); // Backup por si acaso
-
-            // 2. CORRECCIÓN: El Front envía 'id', el Back a veces espera 'userId'
             String userId = null;
             if (userDataMap != null) {
                 userId = userDataMap.get("id") != null ?
@@ -76,8 +77,7 @@ public class DiagnosisService {
             System.out.println(" Persistencia exitosa en Cloud SQL para usuario: " + userId);
 
         } catch (Exception e) {
-            System.err.println(" Error crítico guardando chat: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error persistiendo chat: " + e.getMessage());
         }
     }
     // 3. Buscar por ID para el controlador

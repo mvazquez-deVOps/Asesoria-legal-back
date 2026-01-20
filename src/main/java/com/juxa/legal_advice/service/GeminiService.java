@@ -27,7 +27,7 @@ public class GeminiService {
 
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
         String contextoPersona = "MORAL".equalsIgnoreCase(userData.getUserType()) ?
-            contextoPersona = "el representante de la empresa" : "el ciudadano";
+             "el representante de la empresa" : "el ciudadano";
 
         String prompt = PromptBuilder.buildInitialDiagnosisPrompt(userData, contextoPersona);
 
@@ -88,7 +88,12 @@ public class GeminiService {
 */
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
         // 1. Extraemos los datos básicos
-        String currentMessage = (String) payload.get("message");
+        String currentMessage = (String) payload.get("currentMessage");
+        if (currentMessage == null) currentMessage = (String) payload.get("message");
+        if (currentMessage == null || currentMessage.trim().isEmpty()) {
+            currentMessage = "Continuar con el análisis legal";
+        }
+
         List<Map<String, Object>> history = (List<Map<String, Object>>) payload.get("history");
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
 
@@ -98,9 +103,7 @@ public class GeminiService {
 
         // 3. CONOCIMIENTO TÉCNICO (CAMBIO CRÍTICO AQUÍ)
         // Validamos que currentMessage no sea nulo ni esté vacío para evitar el Error 400
-        String contextoLegal = (currentMessage != null && !currentMessage.trim().isEmpty())
-                ? vertexSearchService.searchLegalKnowledge(currentMessage)
-                : "Inicio de conversación técnica."; // Fallback para el primer mensaje
+        String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
 
         System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
 

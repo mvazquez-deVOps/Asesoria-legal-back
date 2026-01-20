@@ -26,7 +26,6 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
 
-    private final Key secretKey = Keys.hmacShaKeyFor("claveSuperSecretaDe256bits1234567890123456".getBytes());
 
     @Autowired
     public JwtFilter(JwtUtil jwtUtil, @Lazy UserDetailsService userDetailsService) {

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/payments")
-@CrossOrigin(origins = "https://back-legaladvice-284685729356.us-central1.run.app")
 public class PaymentController {
 
     @Autowired

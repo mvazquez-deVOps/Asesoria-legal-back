@@ -14,7 +14,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor // Inyecta automáticamente userService y authService
-@CrossOrigin(origins = "*")
 public class AuthController {
 
     private final UserService userService;

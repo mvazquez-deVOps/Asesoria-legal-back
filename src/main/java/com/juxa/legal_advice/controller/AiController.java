@@ -14,12 +14,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {
-        "https://asesoria-legal-juxa-83a12.web.app",
-        "https://asesoria-legal-juxa-83a12.firebaseapp.com",
-        "http://localhost:57713",
-        "http://localhost:3000"
-})
 public class AiController {
 
     private final GeminiService geminiService;
