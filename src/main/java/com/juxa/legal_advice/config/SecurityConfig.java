@@ -79,16 +79,22 @@ public class SecurityConfig {
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
 
-        // Para pruebas puedes abrir todo
-        configuration.addAllowedOriginPattern("*");
+        // 1. Especificamos los dominios reales (NUNCA uses "*" con AllowCredentials)
+        configuration.setAllowedOrigins(java.util.Arrays.asList(
+                "https://asesoria-legal-juxa-83a12.web.app",
+                "https://asesoria-legal-juxa-83a12.firebaseapp.com",
+                "https://pruebasjuxa.web.app",
+                "http://localhost:3000",
+                "http://localhost:5173"
+        ));
 
-        // Para producción restringe a tu dominio:
-        // configuration.addAllowedOriginPattern("https://pruebasjuxa.web.app");
+        // 2. Permitimos todos los métodos y encabezados necesarios
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("*")); // Aquí sí puedes usar "*"
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        // 3. Importante para que el Front pueda leer el Token y enviarlo
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
 
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
