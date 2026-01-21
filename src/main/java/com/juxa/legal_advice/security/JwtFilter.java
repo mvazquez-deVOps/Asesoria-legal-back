@@ -1,7 +1,6 @@
 package com.juxa.legal_advice.security;
 
 import com.juxa.legal_advice.security.JwtUtil;
-import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,7 +17,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.security.Key;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {
@@ -26,11 +24,10 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
 
-
     @Autowired
     public JwtFilter(JwtUtil jwtUtil, @Lazy UserDetailsService userDetailsService) {
         this.jwtUtil = jwtUtil;
-        // El @Lazy es fundamental aquí para evitar el error de ciclo de dependencias
+        // El @Lazy evita el ciclo de dependencias
         this.userDetailsService = userDetailsService;
     }
 
@@ -40,6 +37,14 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // ⚡ Ignorar preflight requests (OPTIONS) para que CORS funcione
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+
         String authHeader = request.getHeader("Authorization");
         String email = null; // En JUXA usamos el email como identificador principal
         String token = null;
@@ -48,7 +53,7 @@ public class JwtFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
             try {
-                // Extraemos el email (subject) del token usando tu clase JwtUtil
+                // Extraemos el email (subject) del token usando JwtUtil
                 email = jwtUtil.extractUsername(token);
             } catch (Exception e) {
                 // Si el token es inválido o expiró, simplemente no autenticamos
@@ -58,19 +63,17 @@ public class JwtFilter extends OncePerRequestFilter {
         // 2. Validar el token y autenticar al usuario en el contexto de Spring
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                // Buscamos los detalles del usuario en la base de datos de JUXA
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                // Validamos que el token coincida con el usuario y no esté expirado
                 if (jwtUtil.validateToken(token, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                    // Inyectamos al usuario autenticado en el sistema para esta petición
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             } catch (UsernameNotFoundException e) {

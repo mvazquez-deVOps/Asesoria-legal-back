@@ -7,7 +7,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -54,15 +53,21 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults())
+                // 👇 aquí enlazamos explícitamente tu configuración CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Permitir preflight requests (OPTIONS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Endpoints públicos
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
                         .requestMatchers("/api/ai/chat").permitAll()
+                        .requestMatchers("/api/dashboard/initial-data").permitAll()
+                        // Endpoints protegidos
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/api/pdf/**").authenticated()
+                        // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
@@ -74,16 +79,14 @@ public class SecurityConfig {
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
 
-        // Solo orígenes confiables
-        configuration.setAllowedOrigins(Arrays.asList(
-                "https://asesoria-legal-juxa-83a12.web.app",
-                "https://asesoria-legal-juxa-83a12.firebaseapp.com",
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "http://localhost:8080"
-        ));
+        // Para pruebas puedes abrir todo
+        configuration.addAllowedOriginPattern("*");
+
+        // Para producción restringe a tu dominio:
+        // configuration.addAllowedOriginPattern("https://pruebasjuxa.web.app");
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "x-requested-with", "Cache-Control"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(Arrays.asList("Authorization"));
 

@@ -28,6 +28,8 @@ public class GeminiClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-goog-api-key", apiKey);
+        System.out.println("API Key usada: " + apiKey);
+
 
         // Crear el cuerpo de forma segura con un Map
         Map<String, Object> bodyMap = Map.of(
@@ -39,7 +41,7 @@ public class GeminiClient {
         try {
             // Usar RestTemplate para enviar el objeto (él se encarga del JSON)
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(bodyMap, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(geminiApiUrl, bodyMap, String.class);
+            ResponseEntity<String> response = restTemplate.postForEntity(geminiApiUrl, requestEntity, String.class);
             return response.getBody();
         } catch (Exception e) {
             throw new RuntimeException("Error al llamar a Gemini: " + e.getMessage(), e);
