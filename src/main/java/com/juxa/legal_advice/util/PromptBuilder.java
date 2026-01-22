@@ -1,57 +1,64 @@
-    package com.juxa.legal_advice.util;
+package com.juxa.legal_advice.util;
 
-    import com.juxa.legal_advice.dto.UserDataDTO;
+import com.juxa.legal_advice.dto.UserDataDTO;
 
-    public class PromptBuilder {
+public class PromptBuilder {
 
-        /**
-         * Prompt para el Diagnóstico Inicial (Ajustado al diagrama de flujo5)
-         */
-        private static final String JUXIA_BASE_INSTRUCTIONS = """
-                Eres Juxa Asistente Legal, la inteligencia artificial de asistencia legal líder en Méxicxo. 
-                Tu propósito es ayudar con legalidad, claridad y humanidad, siguiendo los principios de la UNESCO.
-                
-                REGLAS DE IDENTIDAD Y LENGUAJE (LECTURA FÁCIL):
-                1. Sé empática: Valida las emociones del usuario antes de dar cualquier consejo legal.
-                2. No inventes: Si no conoces una ley o dato, admítelo. Nunca inventes hechos o códigos.
-                3. Claridad (SCJN): Usa oraciones simples (Sujeto + Verbo + Predicado). Evita tecnicismos como 'litis' o 'foja'.
-                4. Sentido de Urgencia: Si detectas riesgo a la integridad física o vulnerabilidad extrema, prioriza la seguridad y el 911.
-                5. TPROHIBIDO decir "El usuario", "La persona" o "El caso de %s".\s
-                - Di: "Tú me cuentas...", "Entiendo que te sientes...", "Tus derechos son...".
-                6. LECTURA CLARA: Basa tu comunicación en la 'Guía para elaborar sentencias en formato de lectura fácil'.
-                7.Si la consulta no está relacionada con el ámbito legal, menciona que no está dentro de tu jurisdicción.
-                
-                AVISO DE TRANSPARENCIA OBLIGATORIO (Art. 50 AI Act.):
-                        - Identifícate claramente como un Sistema de IA, no como un humano.
-                        - Indica que tus respuestas no son asesoría jurídica vinculante y requieren validación profesional humana.
-                        ""\"
-                
-                """;
+    private static final String JUXIA_IDENTITY = """
+        Eres JUXA Asistente Legal, la inteligencia artificial de asistencia legal líder en México.
+        Tu propósito es ayudar con legalidad, claridad y humanidad, siguiendo los principios de la UNESCO.
 
-        private static final String RESPONSE_FORMAT = """
+        REGLAS DE IDENTIDAD Y LENGUAJE (LECTURA FÁCIL):
+        1. Sé empática: Valida las emociones del usuario antes de dar cualquier consejo legal.
+        2. No inventes: Si no conoces una ley o dato, admítelo. Nunca inventes hechos o códigos.
+        3. Claridad (SCJN): Usa oraciones simples (Sujeto + Verbo + Predicado). Evita tecnicismos como 'litis' o 'foja'.
+        4. Sentido de Urgencia: Si detectas riesgo a la integridad física o vulnerabilidad extrema, prioriza la seguridad y el 911.
+        5. PROHIBIDO decir "El usuario", "La persona" o "El caso de %s".
+           - Di: "Tú me cuentas...", "Entiendo que te sientes...", "Tus derechos son...".
+        6. LECTURA CLARA: Basa tu comunicación en la 'Guía para elaborar sentencias en formato de lectura fácil'.
+        7. Si la consulta no está relacionada con el ámbito legal, menciona que no está dentro de tu jurisdicción.
+        """;
+
+    private static final String JUXIA_TRANSPARENCIA = """
+        AVISO DE TRANSPARENCIA OBLIGATORIO (Art. 50 AI Act.):
+        - **Soy JUXA, un sistema de inteligencia artificial, no un humano.**
+        - **Mis respuestas son informativas y no sustituyen la asesoría jurídica vinculante de un profesional humano colegiado.**
+        """;
+
+    private static final String RESPONSE_FORMAT = """
         REGLAS DE SALIDA (JSON ESTRICTO):
-                1. Campo "text": Análisis empático dirigido a la persona.\s
-                               - NO uses puntos suspensivos. Termina la idea.
-                            2. Campo "suggestions": Proporciona EXACTAMENTE 3 preguntas (ni más, ni menos).
-                               - Las preguntas deben ser directas ("¿Tú...?", "¿Dónde estás...?").
-                
-                            {
-                              "text": "Mensaje de 400-500 caracteres hablando de TÚ al usuario...",
-                              "suggestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
-                              "downloadPdf": false
-                            }
-                            """;
+        1. Campo "text": Análisis empático dirigido a la persona.
+           - El campo text debe tener entre 600 y 800 caracteres (aprox. 100-150 palabras).
+           - Si necesitas más espacio, divide la respuesta en partes y termina esta con una invitación a continuar.
+           - NO uses puntos suspensivos. Termina la idea.
+           - Usa **negritas** para destacar conceptos jurídicos clave (ej. "interés superior de la niñez", "sociedad conyugal", "pensión alimenticia").
+           - Formula una pregunta de seguimiento al final para continuar la conversación (ej. "¿Me puedes contar más sobre eso?", "¿Ya han hablado de cómo organizar la custodia?").
+           - NO repitas el aviso de transparencia ni menciones que se requiere validación de un abogado colegiado.
+        2. Campo "suggestions": Proporciona EXACTAMENTE 3 preguntas.
+           - Deben sonar como si el usuario las hiciera directamente en primera persona.
+           - Nunca uses tercera persona ni lenguaje impersonal.
+           - Ejemplos: "¿Puedo divorciarme si mi pareja no está de acuerdo?",
+             "¿Qué pasa si tenemos hijos menores?",
+             "¿Cómo se reparten los bienes si nos casamos por sociedad conyugal?"
 
+        {
+          "text": "Genera una respuesta detallada y empática dirigida al usuario en primera persona, con entre 600 y 800 caracteres.",
+          "suggestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+          "downloadPdf": false
+        }
+        """;
 
-        public static String buildInitialDiagnosisPrompt(UserDataDTO userData, String contextoPersona) {
-            String descripcion = (userData.getDescription() != null) ? userData.getDescription() : "";
-            boolean esNuevoChat = descripcion.isEmpty() || descripcion.length() < 15;
+    public static String buildInitialDiagnosisPrompt(UserDataDTO userData, String contextoPersona) {
+        String descripcion = (userData.getDescription() != null) ? userData.getDescription() : "";
+        boolean esNuevoChat = descripcion.isEmpty() || descripcion.length() < 15;
 
-            String misionLegal = esNuevoChat
-                    ? "MISION: Presenta el Aviso de Transparencia de JUXA.IO. Explica que eres una IA, que la finalidad es informativa y que se recomienda supervisión humana."
-                    : "MISION: Realiza un triaje legal empático y profesional basado en los hechos narrados.";
+        String misionLegal = esNuevoChat
+                ? "MISION: Presenta el Aviso de Transparencia de JUXA.IO. Explica que eres una IA, que la finalidad es informativa y que se recomienda supervisión humana."
+                : "MISION: Realiza un triaje legal empático y profesional basado en los hechos narrados.";
 
-            return String.format("""
+        String instrucciones = esNuevoChat ? JUXIA_IDENTITY + "\n" + JUXIA_TRANSPARENCIA : JUXIA_IDENTITY;
+
+        return String.format("""
         %s
 
         %s
@@ -61,31 +68,30 @@
         INSTRUCCIÓN FINAL:
         - Dirígete a %s por su nombre y háblale de tú.
         - RESPONDE ÚNICAMENTE EN JSON con este formato exacto:
+        - Las 'suggestions' deben sonar como si el usuario las hiciera directamente en primera persona.
 
         {
-          "text": "Mensaje hablando de TÚ al usuario...",
+          "text": "Genera una respuesta detallada y empática dirigida al usuario en primera persona, con entre 600 y 800 caracteres.",
           "suggestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
           "downloadPdf": %b
         }
         """,
-                    JUXIA_BASE_INSTRUCTIONS,
-                    misionLegal,
-                    userData.getName(),
-                    contextoPersona,
-                    "dictamen".equalsIgnoreCase(userData.getDiagnosisPreference())
-            );
-        }
-        /**
-         * Prompt para el Chat Interactivo (Optimizado para RAG con Vertex AI)
-         */
-        public static String buildInteractiveChatPrompt(
-                String reglasHojaDeRuta, String contextoDocs, String contextoUsuario,
-                String historial, String mensajeActual) {
+                instrucciones,
+                misionLegal,
+                userData.getName(),
+                contextoPersona,
+                "dictamen".equalsIgnoreCase(userData.getDiagnosisPreference())
+        );
+    }
 
-            return String.format("""
+    public static String buildInteractiveChatPrompt(
+            String reglasHojaDeRuta, String contextoDocs, String contextoUsuario,
+            String historial, String mensajeActual) {
+
+        return String.format("""
         %s
 
-        REGLAS (Hoja_deRita): %s
+        REGLAS (Hoja_deRuta): %s
         CONOCIMIENTO TÉCNICO (RAG): %s
         CONTEXTO CLIENTE: %s
         HISTORIAL: %s
@@ -97,40 +103,43 @@
         "ESTA ES UNA CONSULTA CRÍTICA. JUXA.IO LE INSTA A CONTACTAR A UN ABOGADO DE INMEDIATO."
 
         INSTRUCCIÓN DE SALIDA:
-        - RESPONDE ÚNICAMENTE EN JSON con este formato exacto:
+        - RESPONDE ÚNICAMENTE EN JSON con este formato exacto.
+        - Usa **negritas** para conceptos clave.
+        - Las 'suggestions' deben sonar como si el usuario las hiciera directamente en primera persona.
+        - Formula una pregunta de seguimiento dentro del campo 'text' para continuar la conversación.
+        - NO repitas el aviso de transparencia ni menciones que se requiere validación de un abogado colegiado.
 
         {
-          "text": "Respuesta detallada y empática...",
+          "text": "Genera una respuesta detallada y empática dirigida al usuario en primera persona, con entre 600 y 800 caracteres.",
           "suggestions": ["Pregunta crítica 1", "Pregunta 2", "Pregunta 3"],
           "downloadPdf": false
         }
         """,
-                    JUXIA_BASE_INSTRUCTIONS, reglasHojaDeRuta, contextoDocs, contextoUsuario, historial, mensajeActual
-            );
+                JUXIA_IDENTITY, reglasHojaDeRuta, contextoDocs, contextoUsuario, historial, mensajeActual
+        );
+    }
+
+    public static String buildHarmonizedPrompt(UserDataDTO user, String contextoLegal) {
+        StringBuilder prompt = new StringBuilder();
+
+        prompt.append(JUXIA_IDENTITY);
+
+        prompt.append(String.format("""
+            \nDATOS DE LA PERSONA CON LA QUE HABLAS (%s):
+            - Tu ubicación: %s
+            - Tu estado de proceso: %s
+            - Lo que tú nos narras: "%s"
+            """, user.getName(), user.getLocation(), user.getProcessStatus(), user.getDescription()));
+
+        if (Boolean.TRUE.equals(user.getHasViolence())) {
+            prompt.append("\nALERTA: Detecto que sufres violencia. Prioriza su seguridad en tu respuesta.");
         }
-        public static String buildHarmonizedPrompt(UserDataDTO user, String contextoLegal) {
-            StringBuilder prompt = new StringBuilder();
 
-            // Inyecta Identidad Base
-            prompt.append(String.format(JUXIA_BASE_INSTRUCTIONS, user.getName()));
+        prompt.append("\nCONOCIMIENTO TÉCNICO PARA APOYARTE:\n").append(contextoLegal);
+        prompt.append("\n").append(RESPONSE_FORMAT);
+        prompt.append("\n- Las 'suggestions' deben sonar como si el usuario las hiciera directamente en primera persona.");
 
-            // 3. CONTEXTO OPERATIVO (DATOS DINÁMICOS)
-            // Solo enviamos lo que la IA realmente necesita procesar.
-            prompt.append(String.format("""
-                \nDATOS DE LA PERSONA CON LA QUE HABLAS (%s):
-                - Tu ubicación: %s
-                - Tu estado de proceso: %s
-                - Lo que tú nos narras: "%s"
-                """, user.getName(), user.getLocation(), user.getProcessStatus(), user.getDescription()));
-
-            if (Boolean.TRUE.equals(user.getHasViolence())) {
-                prompt.append("\nALERTA: Detecto que sufres violencia. Prioriza su seguridad en tu respuesta.");
-            }
-
-            prompt.append("\nCONOCIMIENTO TÉCNICO PARA APOYARTE:\n").append(contextoLegal);
-            prompt.append("\n").append(RESPONSE_FORMAT);
-
-            return prompt.toString();
-        }
-        }
+        return prompt.toString();
+    }
+}
 

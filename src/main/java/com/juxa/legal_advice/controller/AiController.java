@@ -25,6 +25,25 @@ public class AiController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/chat-simple")
+    public ResponseEntity<Map<String, Object>> chatSimple(@RequestBody Map<String, String> body) {
+        try {
+            String prompt = body.get("prompt");
+            String aiResponse = geminiService.callGemini(prompt);
+
+            return ResponseEntity.ok(Map.of(
+                    "text", aiResponse,
+                    "suggestions", List.of(),
+                    "downloadPdf", false
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "No se pudo procesar la consulta con Gemini",
+                    "details", e.getMessage()
+            ));
+        }
+    }
+
     @PostMapping("/chat")
     public ResponseEntity<Map<String, Object>> chat(@RequestBody Map<String, Object> payload) {
         try {

@@ -12,6 +12,7 @@ import java.util.Map;
 public class GeminiClient {
 
     private final RestTemplate restTemplate;
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GeminiClient.class);
 
     @Value("${gemini.api.url}")
     private String geminiApiUrl; // Quitar 'final' para que @Value funcione correctamente
@@ -24,11 +25,17 @@ public class GeminiClient {
         this.restTemplate = restTemplate;
     }
     // GeminiClient.java
+
+
     public String callGemini(String prompt) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-goog-api-key", apiKey);
         System.out.println("API Key usada: " + apiKey);
+
+        logger.error("Llamando a Gemini en URL: {}", geminiApiUrl);
+        logger.error("Payload enviado: {}", prompt);
+
 
 
         // Crear el cuerpo de forma segura con un Map

@@ -21,8 +21,16 @@ public class GeminiService {
 
     private final GeminiClient geminiClient;
     private final AiBucketService bucketService;
-    private final ObjectMapper objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final VertexSearchService vertexSearchService;
+
+
+    public String callGemini(String prompt) {
+        return geminiClient.callGemini(prompt);
+    }
+
+
 
 
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
