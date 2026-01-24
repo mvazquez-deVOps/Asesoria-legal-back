@@ -240,7 +240,9 @@ public class GeminiService {
         if (message == null) {
             message = (String) payload.get("message");
         }
-        return (message != null) ? message.trim() : "";
+        return (message != null && !message.trim().isEmpty())
+           ? message.trim()
+           : "Continuar con el análisis legal basado en los hechos anteriores.";
     }
 
     /**
