@@ -167,7 +167,7 @@ public class GeminiService {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
          // Obtener las reglas y prompts asignados
-        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
+        String reglasJuxa = getReglasJuxa();
 
         //Busqueda del agente
 
