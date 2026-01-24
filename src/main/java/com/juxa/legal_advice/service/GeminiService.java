@@ -14,6 +14,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +32,8 @@ public class GeminiService {
     public String callGemini(String prompt) {
         return geminiClient.callGemini(prompt);
     }
+
+    private String cachedReglasJuxa = null;
 
 
 
@@ -48,6 +53,13 @@ public class GeminiService {
             result.put("text", text.substring(0, 500) + "...");
         }
         return result;
+    }
+
+    private String getReglasJuxa() {
+        if (cachedReglasJuxa == null) {
+            cachedReglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
+        }
+        return cachedReglasJuxa;
     }
 
     /* Esta versión se utilizaba cuando se requería buscar archivo por archivo
@@ -95,44 +107,34 @@ public class GeminiService {
     }
 */
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
-        // 1. Extraemos los datos básicos
-        String currentMessage = (String) payload.get("currentMessage");
-        if (currentMessage == null) currentMessage = (String) payload.get("message");
-        if (currentMessage == null || currentMessage.trim().isEmpty()) {
-            currentMessage = "Continuar con el análisis legal";
-        }
+        // --- PASO 1: Extracción y Limpieza (Operaciones CPU rápidas) ---
+       final String currentMessage = extractMessage(payload); // Usa tu helper o el logic de abajo
 
-        List<Map<String,Object>> history = new ArrayList<>();
-        Object rawHistory = payload.get("history");
-        if (rawHistory instanceof List<?>) {
-            for (Object item : (List<?>) rawHistory) {
-                if (item instanceof Map<?,?>) {
-                    history.add((Map<String,Object>) item);
-                }
-            }
-        }
 
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
+        List<Map<String, Object>> history = extractHistory(payload);
 
-        // 2. REGLAS DE MISIÓN
-        String reglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
+        // Disparar Tareas Asíncronas
+        // Lanzamos la búsqueda en Vertex y la obtención de reglas al mismo tiempo
+        CompletableFuture<String> contextFuture = CompletableFuture.supplyAsync(() ->
+                vertexSearchService.searchLegalKnowledge(currentMessage)
+        );
 
-        // 3. CONOCIMIENTO TÉCNICO (CAMBIO CRÍTICO AQUÍ)
-        String contextoLegal = vertexSearchService.searchLegalKnowledge(currentMessage);
-        System.out.println("DEBUG - Contexto recuperado de Vertex: " + contextoLegal);
+        CompletableFuture<String> reglasFuture = CompletableFuture.supplyAsync(this::getReglasJuxa);
 
-        // 4. CONTEXTO DE USUARIO
-        String subcategory = userData.getSubcategory() != null ? userData.getSubcategory() : "Sin categoría";
-        String preference = userData.getDiagnosisPreference() != null ? userData.getDiagnosisPreference() : "Sin preferencia";
-        String name = userData.getName() != null ? userData.getName() : "Desconocido";
-
+        // --- PASO 3: Preparar Contexto de Usuario (Mientras Vertex trabaja) ---
         String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s. PREFERENCIA: %s.",
-                name,
-                subcategory,
-                preference);
+                userData.getName() != null ? userData.getName() : "Desconocido",
+                userData.getSubcategory() != null ? userData.getSubcategory() : "Sin categoría",
+                userData.getDiagnosisPreference() != null ? userData.getDiagnosisPreference() : "Sin preferencia");
 
+        // --- PASO 4: Sincronización (Join) ---
+        // Aquí el código espera solo si Vertex aún no termina.
+        // Si Vertex tardó 3s y procesar el resto tardó 1s, solo "esperas" 2s.
+        String contextoLegal = contextFuture.join();
+        String reglasJuxa = reglasFuture.join();
 
-        // 5. PROMPT MAESTRO
+        // --- PASO 5: Prompt y Llamada a Gemini ---
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
                 reglasJuxa,
                 contextoLegal,
@@ -140,19 +142,26 @@ public class GeminiService {
                 history.isEmpty() ? "Inicio" : history.toString(),
                 currentMessage);
 
+        // Llamada final al modelo
+        String fullResponse = geminiClient.callGemini(prompt);
 
-                String fullResponse = geminiClient.callGemini(prompt);
-
-        // 6. EXTRACCIÓN ESTRUCTURADA
+        // --- PASO 6: Estructuración y UX ---
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
-        // 7. UX: Lógica de recordatorio
+        // Inyectar lógica de recordatorio
+        injectReminderLogic(result, history);
+
+        return result;
+    }
+
+    // Helper para no ensuciar el método principal
+    private void injectReminderLogic(Map<String, Object> result, List<Map<String, Object>> history) {
         long userQuestions = history.stream()
                 .filter(m -> "user".equals(m.get("role")))
                 .count();
         if (userQuestions > 0 && userQuestions % 5 == 0) {
             result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
-        }return result;
+        }
     }
     public String generateLegalSummary(DiagnosisEntity entity) {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
@@ -174,13 +183,11 @@ public class GeminiService {
     }
 
     // Nuevo extractor estructurado: diagnosis + suggestions
-    // GeminiService.java
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
             String rawText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
 
-            // Buscamos las llaves { } reales, ignorando cualquier texto extra de Gemini
             int start = rawText.indexOf("{");
             int end = rawText.lastIndexOf("}");
 
@@ -223,5 +230,35 @@ public class GeminiService {
         } catch (Exception e) {
             return "Lo siento, hubo un error procesando tu consulta.";
         }
+    }
+    /**
+     * Extrae el mensaje actual del payload de forma segura,
+     * verificando múltiples llaves posibles.
+     */
+    private String extractMessage(Map<String, Object> payload) {
+        String message = (String) payload.get("currentMessage");
+        if (message == null) {
+            message = (String) payload.get("message");
+        }
+        return (message != null) ? message.trim() : "";
+    }
+
+    /**
+     * Extrae y castea la lista del historial de chat de forma segura
+     * para evitar ClassCastException.
+     */
+    private List<Map<String, Object>> extractHistory(Map<String, Object> payload) {
+        List<Map<String, Object>> history = new ArrayList<>();
+        Object rawHistory = payload.get("history");
+
+        if (rawHistory instanceof List<?>) {
+            for (Object item : (List<?>) rawHistory) {
+                if (item instanceof Map<?, ?>) {
+                    // Casteo seguro de cada entrada del historial
+                    history.add((Map<String, Object>) item);
+                }
+            }
+        }
+        return history;
     }
 }

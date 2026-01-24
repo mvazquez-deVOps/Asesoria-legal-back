@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -53,14 +54,16 @@ public class AiController {
             List<String> aiSuggestions = (List<String>) aiResponse.get("suggestions");
             Boolean downloadPdf = (Boolean) aiResponse.getOrDefault("downloadPdf", false);
 
-            try {
-                // 2. Persistencia en Cloud SQL
-                diagnosisService.saveFromChat(payload, aiText);
-            } catch (Exception e) {
-                System.err.println("Error al persistir diagnóstico: " + e.getMessage());
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    diagnosisService.saveFromChat(payload, aiText);
+                } catch (Exception e) {
+                    System.err.println("Error asíncrono al persistir en SQL: " + e.getMessage());
+                }
+            });
 
-            // 3. Respuesta en formato AiChatResponse (lo que espera el Front)
+            // 3. RESPUESTA INMEDIATA
+            // El usuario recibe su respuesta mientras el SQL sigue trabajando.
             return ResponseEntity.ok(Map.of(
                     "text", aiText,
                     "suggestions", aiSuggestions,
@@ -69,7 +72,7 @@ public class AiController {
 
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                    "error", "No se pudo procesar la consulta con Gemini",
+                    "error", "Error en el procesamiento de IA",
                     "details", e.getMessage()
             ));
         }
