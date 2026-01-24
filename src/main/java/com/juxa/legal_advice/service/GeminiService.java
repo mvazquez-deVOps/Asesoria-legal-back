@@ -174,7 +174,9 @@ public class GeminiService {
 
         String prompt = String.format( """
                 Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
+                REGLAS DE OPERACION: %s.
                 HECHOS: %s. HISTORIAL: %s.
+                Genera un plan de acción jurídica profesional.
                 Divide en: 1. RESUMEN, 2. FUNDAMENTACIÓN, 3. ACCIONES, 4. PROCEDIMIENTO, 5. RECOMENDACIÓN.
                 """, reglasJuxa, hechos, contexto);
 
