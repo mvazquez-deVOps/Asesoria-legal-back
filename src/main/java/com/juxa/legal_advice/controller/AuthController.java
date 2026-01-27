@@ -4,6 +4,7 @@ import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.service.AuthService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,7 +19,21 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthService authService; // <--- AGREGA ESTA LÍNEA PARA QUITAR EL ROJO
+    @Value("${google.client.id}")
+    private String googleClientId;
 
+    @PostMapping("/google")
+    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> request) {
+        String idTokenString = request.get("token"); // El token que envía el Front
+        try {
+            // Este método validará el token y creará/logueará al usuario
+            AuthResponseDTO response = authService.verifyGoogleToken(idTokenString);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Token de Google inválido", "message", e.getMessage()));
+        }
+    }
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequestDTO credentials) {
         try {
