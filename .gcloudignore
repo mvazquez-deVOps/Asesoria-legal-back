@@ -2,6 +2,13 @@
 .git
 .gitignore
 
-# PERO NO IGNORAR LA CARPETA BUILD
-!build/
-!build/libs/*.jar
+# Ignorar carpetas de compilación y temporales
+.gradle/
+build/
+bin/
+target/
+.idea/
+
+# Ignorar todos los .jar EXCEPTO el del wrapper de Gradle
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

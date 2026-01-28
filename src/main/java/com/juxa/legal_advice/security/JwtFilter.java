@@ -36,15 +36,12 @@ public class JwtFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
-
         // ⚡ Ignorar preflight requests (OPTIONS) para que CORS funcione
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        /*if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             response.setStatus(HttpServletResponse.SC_OK);
             filterChain.doFilter(request, response);
             return;
-        }
-
-
+        } */
         String authHeader = request.getHeader("Authorization");
         String email = null; // En JUXA usamos el email como identificador principal
         String token = null;

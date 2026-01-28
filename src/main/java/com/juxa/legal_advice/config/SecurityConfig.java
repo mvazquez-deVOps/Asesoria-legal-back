@@ -16,6 +16,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
@@ -53,21 +55,24 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                // 👇 aquí enlazamos explícitamente tu configuración CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .headers(headers -> headers
+                        .addHeaderWriter((request, response) -> {
+                            // Solo agregamos el header si la ruta NO empieza con /api/auth
+                            if (!request.getRequestURI().startsWith("/api/auth")) {
+                                response.addHeader("Cross-Origin-Opener-Policy", "same-origin");
+                            }
+                        })
+                )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Permitir preflight requests (OPTIONS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // Endpoints públicos
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
                         .requestMatchers("/api/ai/chat").permitAll()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
-                        // Endpoints protegidos
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/api/pdf/**").authenticated()
-                        // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
@@ -76,7 +81,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
 
         // 1. Especificamos los dominios reales (NUNCA uses "*" con AllowCredentials)
@@ -91,12 +96,10 @@ public class SecurityConfig {
         // 2. Permitimos todos los métodos y encabezados necesarios
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*")); // Aquí sí puedes usar "*"
-
-        // 3. Importante para que el Front pueda leer el Token y enviarlo
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
 
-        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
