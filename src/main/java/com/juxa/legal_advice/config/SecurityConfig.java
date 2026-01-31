@@ -95,10 +95,10 @@ public class SecurityConfig {
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios
-        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*")); // Aquí sí puedes usar "*"
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization"));
+        configuration.setExposedHeaders(java.util.Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
 
         UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

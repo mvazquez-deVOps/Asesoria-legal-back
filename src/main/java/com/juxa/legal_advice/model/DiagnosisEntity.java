@@ -32,7 +32,7 @@ public class DiagnosisEntity {
 
     @Builder.Default
     private boolean isPaid = true;
-
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
