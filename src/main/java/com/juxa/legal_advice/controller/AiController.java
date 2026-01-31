@@ -5,9 +5,12 @@ import com.juxa.legal_advice.service.DiagnosisService;
 import com.juxa.legal_advice.service.GeminiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -26,55 +29,34 @@ public class AiController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/chat-simple")
-    public ResponseEntity<Map<String, Object>> chatSimple(@RequestBody Map<String, String> body) {
-        try {
-            String prompt = body.get("prompt");
-            String aiResponse = geminiService.callGemini(prompt);
 
-            return ResponseEntity.ok(Map.of(
-                    "text", aiResponse,
-                    "suggestions", List.of(),
-                    "downloadPdf", false
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of(
-                    "error", "No se pudo procesar la consulta con Gemini",
-                    "details", e.getMessage()
-            ));
-        }
-    }
 
-    @PostMapping("/chat")
-    public ResponseEntity<Map<String, Object>> chat(@RequestBody Map<String, Object> payload) {
+    @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> chat(
+            @RequestParam("message") String currentMessage,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam("userData") String userDataJson,
+            @RequestParam("history") String historyJson) {
         try {
-            // 1. Procesamos la respuesta de la IA (Gemini)
+            // 1. Extraer texto del archivo si existe
+            String contextoArchivo = "";
+            if (file != null && !file.isEmpty()) {
+                contextoArchivo = geminiService.extractTextFromFile(file);
+            }
+
+            // 2. Reconstruir el payload para procesar (puedes convertir los JSON Strings a Mapas aquí)
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("message", contextoArchivo.isEmpty() ? currentMessage : "Contexto del archivo: " + contextoArchivo + "\n\nPregunta: " + currentMessage);
+
+            // 3. Procesar con Gemini como ya lo haces
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
-            String aiText = (String) aiResponse.get("text");
-            List<String> aiSuggestions = (List<String>) aiResponse.get("suggestions");
-            Boolean downloadPdf = (Boolean) aiResponse.getOrDefault("downloadPdf", false);
 
-            CompletableFuture.runAsync(() -> {
-                try {
-                    diagnosisService.saveFromChat(payload, aiText);
-                } catch (Exception e) {
-                    System.err.println("Error asíncrono al persistir en SQL: " + e.getMessage());
-                }
-            });
+            // ... (resto de tu lógica de persistencia asíncrona)
 
-            // 3. RESPUESTA INMEDIATA
-            // El usuario recibe su respuesta mientras el SQL sigue trabajando.
-            return ResponseEntity.ok(Map.of(
-                    "text", aiText,
-                    "suggestions", aiSuggestions,
-                    "downloadPdf", downloadPdf
-            ));
+            return ResponseEntity.ok(aiResponse);
 
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of(
-                    "error", "Error en el procesamiento de IA",
-                    "details", e.getMessage()
-            ));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 }

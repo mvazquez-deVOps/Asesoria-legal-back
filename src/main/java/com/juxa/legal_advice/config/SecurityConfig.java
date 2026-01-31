@@ -90,7 +90,8 @@ public class SecurityConfig {
                 "https://asesoria-legal-juxa-83a12.firebaseapp.com",
                 "https://pruebasjuxa.web.app",
                 "http://localhost:3000",
-                "http://localhost:5173"
+                "http://localhost:5173",
+                "https://asesorialegal-abogados-284685729356.us-central1.run.app/"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios

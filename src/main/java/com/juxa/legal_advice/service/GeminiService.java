@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.util.PromptBuilder;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.springframework.web.multipart.MultipartFile;
 
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
@@ -49,8 +54,8 @@ public class GeminiService {
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
         String text = (String) result.get("text");
-        if (text != null && text.length() > 500) {
-            result.put("text", text.substring(0, 500) + "...");
+        if (text != null && text.length() > 850) {
+            result.put("text", text.substring(0, 850) + "...");
         }
         return result;
     }
@@ -245,6 +250,28 @@ public class GeminiService {
         return (message != null && !message.trim().isEmpty())
            ? message.trim()
            : "Continuar con el análisis legal basado en los hechos anteriores.";
+    }
+
+
+    public String extractTextFromFile(MultipartFile file) {
+        String filename = file.getOriginalFilename();
+        try {
+            if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
+                // Usa PDFBox que ya tienes en tus dependencias
+                try (PDDocument document = PDDocument.load(file.getInputStream())) {
+                    return new PDFTextStripper().getText(document);
+                }
+            } else if (filename != null && (filename.endsWith(".docx") || filename.endsWith(".doc"))) {
+                // Usa Apache POI (la que agregamos en el paso 1)
+                try (XWPFDocument doc = new XWPFDocument(file.getInputStream())) {
+                    XWPFWordExtractor extractor = new XWPFWordExtractor(doc);
+                    return extractor.getText();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error al leer archivo: " + e.getMessage());
+        }
+        return ""; // Si falla, devolvemos vacío para no romper el chat
     }
 
     /**
