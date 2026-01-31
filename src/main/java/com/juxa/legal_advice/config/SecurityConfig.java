@@ -91,11 +91,11 @@ public class SecurityConfig {
                 "https://pruebasjuxa.web.app",
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://asesorialegal-abogados-284685729356.us-central1.run.app/"
+                "https://asesorialegal-abogados-284685729356.us-central1.run.app"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios
-        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "OPTIONS"));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*")); // Aquí sí puedes usar "*"
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(java.util.Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
