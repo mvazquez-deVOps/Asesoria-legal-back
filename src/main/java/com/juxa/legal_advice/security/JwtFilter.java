@@ -32,53 +32,58 @@ public class JwtFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
-        // ⚡ Ignorar preflight requests (OPTIONS) para que CORS funcione
-        /*if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            response.setStatus(HttpServletResponse.SC_OK);
+        protected void doFilterInternal(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        FilterChain filterChain)
+                throws ServletException, IOException {
+        String uri = request.getRequestURI();
+
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod()) ||
+                uri.startsWith("/api/ai/chat") ||
+                uri.startsWith("/api/ai/generate-initial-diagnosis") ||
+                uri.startsWith("/api/auth")) {
             filterChain.doFilter(request, response);
             return;
-        } */
+        }
+        System.out.println("JwtFilter interceptando URI: " + request.getRequestURI());
+
         String authHeader = request.getHeader("Authorization");
         String email = null; // En JUXA usamos el email como identificador principal
         String token = null;
 
         // 1. Extraer el token del encabezado Bearer
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
-            try {
-                // Extraemos el email (subject) del token usando JwtUtil
-                email = jwtUtil.extractUsername(token);
-            } catch (Exception e) {
-                // Si el token es inválido o expiró, simplemente no autenticamos
-            }
-        }
-
-        // 2. Validar el token y autenticar al usuario en el contexto de Spring
-        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            try {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-
-                if (jwtUtil.validateToken(token, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+                try {
+                    // Extraemos el email (subject) del token usando JwtUtil
+                    email = jwtUtil.extractUsername(token);
+                } catch (Exception e) {
+                    // Si el token es inválido o expiró, simplemente no autenticamos
                 }
-            } catch (UsernameNotFoundException e) {
-                // Si el usuario no existe en la BD, se ignora la autenticación
             }
-        }
 
-        // Continuar con el siguiente filtro o llegar al Controlador
-        filterChain.doFilter(request, response);
+            // 2. Validar el token y autenticar al usuario en el contexto de Spring
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                try {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
+                    if (jwtUtil.validateToken(token, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
+                } catch (UsernameNotFoundException e) {
+                    // Si el usuario no existe en la BD, se ignora la autenticación
+                }
+            }
+
+            // Continuar con el siguiente filtro o llegar al Controlador
+            filterChain.doFilter(request, response);
+        }
     }
-}

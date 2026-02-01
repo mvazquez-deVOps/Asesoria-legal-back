@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.service.DiagnosisService;
 import com.juxa.legal_advice.service.GeminiService;
@@ -9,7 +10,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +22,7 @@ public class AiController {
 
     private final GeminiService geminiService;
     private final DiagnosisService diagnosisService;
+    private final ObjectMapper objectMapper;
 
     @PostMapping("/generate-initial-diagnosis")
     public ResponseEntity<Map<String, Object>> startDiagnosis(@RequestBody UserDataDTO userData) {
@@ -38,6 +39,8 @@ public class AiController {
             @RequestParam("userData") String userDataJson,
             @RequestParam("history") String historyJson) {
         try {
+            Map<String, Object> userDataMap = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            List<Map<String, Object>> historyList = objectMapper.readValue(historyJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             // 1. Extraer texto del archivo si existe
             String contextoArchivo = "";
             if (file != null && !file.isEmpty()) {
@@ -46,13 +49,12 @@ public class AiController {
 
             // 2. Reconstruir el payload para procesar (puedes convertir los JSON Strings a Mapas aquí)
             Map<String, Object> payload = new HashMap<>();
-            payload.put("message", contextoArchivo.isEmpty() ? currentMessage : "Contexto del archivo: " + contextoArchivo + "\n\nPregunta: " + currentMessage);
+            payload.put("message", currentMessage);
+            payload.put("userData", userDataMap);
+            payload.put("history", historyList);
 
             // 3. Procesar con Gemini como ya lo haces
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
-
-            // ... (resto de tu lógica de persistencia asíncrona)
-
             return ResponseEntity.ok(aiResponse);
 
         } catch (Exception e) {

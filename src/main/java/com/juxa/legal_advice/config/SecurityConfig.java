@@ -54,8 +54,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
                 .headers(headers -> headers
                         .addHeaderWriter((request, response) -> {
                             // Solo agregamos el header si la ruta NO empieza con /api/auth
@@ -68,10 +68,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/ai/generate-initial-diagnosis").permitAll()
-                        .requestMatchers("/api/ai/chat").permitAll()
+                        // Añade el comodín para cubrir todos los endpoints de IA
+                        .requestMatchers("/api/ai/**").permitAll()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
+                        .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/pdf/**").authenticated()
                         .anyRequest().authenticated()
                 )
