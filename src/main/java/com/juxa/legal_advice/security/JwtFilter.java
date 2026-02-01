@@ -39,7 +39,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
 
         if ("OPTIONS".equalsIgnoreCase(request.getMethod()) ||
-                uri.startsWith("/api/ai/chat") ||
+                uri.contains("/api/ai/chat") ||
                 uri.startsWith("/api/ai/generate-initial-diagnosis") ||
                 uri.startsWith("/api/auth")) {
             filterChain.doFilter(request, response);

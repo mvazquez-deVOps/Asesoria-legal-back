@@ -10,5 +10,5 @@ RUN ./gradlew clean bootJar -x test
 FROM eclipse-temurin:17-jdk-alpine
 ENV PORT=8080
 EXPOSE 8080
-COPY build/libs/*.jar app.jar
+COPY  --from=build /home/gradle/src/build/libs/*.jar app.jar
 ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT} -jar /app.jar"]
