@@ -42,22 +42,22 @@ public class AiController {
             Map<String, Object> userDataMap
                     = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
             List<Map<String, Object>> historyList = objectMapper.readValue(historyJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+
             // 1. Extraer texto del archivo si existe
             String contextoArchivo = "";
             if (file != null && !file.isEmpty()) {
                 contextoArchivo = geminiService.extractTextFromFile(file);
             }
 
-            // 2. Reconstruir el payload para procesar (puedes convertir los JSON Strings a Mapas aquí)
+            // 2. Reconstruir el payload
             Map<String, Object> payload = new HashMap<>();
             payload.put("message", currentMessage);
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
 
             if (contextoArchivo != null && !contextoArchivo.isEmpty()) {
-                payload.put("fileContext", contextoArchivo);
+                payload.put("contextoArchivo", contextoArchivo);
             }
-
 
             // 3. Procesar con Gemini
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);

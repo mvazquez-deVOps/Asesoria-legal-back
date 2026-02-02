@@ -113,56 +113,44 @@ public class GeminiService {
     }
 */
     public Map<String, Object> processInteractiveChat(Map<String, Object> payload) {
-        // --- PASO 1: Extracción y Limpieza (Operaciones CPU rápidas) ---
-       final String currentMessage = extractMessage(payload); // Usa tu helper o el logic de abajo
-
-
+        // 1. Extracción de datos básicos
+        final String currentMessage = extractMessage(payload);
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
         List<Map<String, Object>> history = extractHistory(payload);
 
-        // Disparar Tareas Asíncronas
-        // Lanzamos la búsqueda en Vertex y la obtención de reglas al mismo tiempo
+        // 2. Extracción del texto del archivo (LIMPIO)
+        String textoExtraido = ((String) payload.getOrDefault("contextoArchivo", "")).trim();
+        if (textoExtraido.length() > 2000) {
+            textoExtraido = textoExtraido.substring(0, 2000) + "...";
+        }
+
+        // 3. Tareas asíncronas (Vertex y Reglas)
         CompletableFuture<String> contextFuture = CompletableFuture.supplyAsync(() ->
                 vertexSearchService.searchLegalKnowledge(currentMessage)
         );
-
         CompletableFuture<String> reglasFuture = CompletableFuture.supplyAsync(this::getReglasJuxa);
 
-        // --- PASO 3: Preparar Contexto de Usuario (Mientras Vertex trabaja) ---
-        String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s. PREFERENCIA: %s.",
-                userData.getName() != null ? userData.getName() : "Desconocido",
-                userData.getSubcategory() != null ? userData.getSubcategory() : "Sin categoría",
-                userData.getDiagnosisPreference() != null ? userData.getDiagnosisPreference() : "Sin preferencia");
+        // 4. Contexto Usuario
+        String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s.",
+                userData.getName(), userData.getSubcategory());
 
-        // --- PASO 4: Sincronización (Join) ---
-        // Aquí el código espera solo si Vertex aún no termina.
-        // Si Vertex tardó 3s y procesar el resto tardó 1s, solo "esperas" 2s.
+        // 5. Esperar resultados y UNIR TODO
         String contextoLegal = contextFuture.join();
         String reglasJuxa = reglasFuture.join();
-        String contextoArchivo = ((String) payload
-                .getOrDefault("contextoArchivo"
-                        , "")).trim();
-        if (contextoArchivo.length() > 2000) {
-            contextoArchivo = contextoArchivo.substring(0, 2000) + "...";
-        }
 
+        // UNIFICACIÓN FINAL: Sumamos Vertex + Texto del Archivo
+        String contextoTotalParaIA = contextoLegal + "\n\nTEXTO DEL DOCUMENTO ADJUNTO:\n" + textoExtraido;
 
-
-        // --- PASO 5: Prompt y Llamada a Gemini ---
+        // 6. Construir Prompt y llamar a Gemini
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
                 reglasJuxa,
-                contextoLegal + "\n" + contextoArchivo,
+                contextoTotalParaIA,
                 contextoUsuario,
                 history.isEmpty() ? "Inicio" : history.toString(),
                 currentMessage);
 
-        // Llamada final al modelo
         String fullResponse = geminiClient.callGemini(prompt);
-
-        // --- PASO 6: Estructuración y UX ---
         Map<String, Object> result = extractStructuredResponse(fullResponse);
-
-        // Inyectar lógica de recordatorio
         injectReminderLogic(result, history);
 
         return result;
