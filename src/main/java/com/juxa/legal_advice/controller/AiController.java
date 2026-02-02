@@ -39,7 +39,8 @@ public class AiController {
             @RequestParam("userData") String userDataJson,
             @RequestParam("history") String historyJson) {
         try {
-            Map<String, Object> userDataMap = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            Map<String, Object> userDataMap
+                    = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
             List<Map<String, Object>> historyList = objectMapper.readValue(historyJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             // 1. Extraer texto del archivo si existe
             String contextoArchivo = "";
@@ -53,7 +54,12 @@ public class AiController {
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
 
-            // 3. Procesar con Gemini como ya lo haces
+            if (contextoArchivo != null && !contextoArchivo.isEmpty()) {
+                payload.put("fileContext", contextoArchivo);
+            }
+
+
+            // 3. Procesar con Gemini
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
             return ResponseEntity.ok(aiResponse);
 

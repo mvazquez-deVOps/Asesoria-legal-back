@@ -62,6 +62,9 @@ dependencies {
 	implementation 'org.apache.poi:poi-ooxml:5.2.3' // Para leer archivos .docx
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+	//implementación de Extracción de pdf
+	implementation 'org.apache.pdfbox:pdfbox:2.0.29'
 }
 
 tasks.named('test') {

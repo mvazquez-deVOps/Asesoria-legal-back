@@ -47,7 +47,8 @@ public class GeminiService {
         String contextoPersona = "MORAL".equalsIgnoreCase(userData.getUserType()) ?
              "el representante de la empresa" : "el ciudadano";
 
-        String prompt = PromptBuilder.buildInitialDiagnosisPrompt(userData, contextoPersona);
+        String prompt = PromptBuilder.buildInitialDiagnosisPrompt(
+                userData, contextoPersona);
 
 
         String fullResponse = geminiClient.callGemini(prompt);
@@ -138,11 +139,19 @@ public class GeminiService {
         // Si Vertex tardó 3s y procesar el resto tardó 1s, solo "esperas" 2s.
         String contextoLegal = contextFuture.join();
         String reglasJuxa = reglasFuture.join();
+        String contextoArchivo = ((String) payload
+                .getOrDefault("contextoArchivo"
+                        , "")).trim();
+        if (contextoArchivo.length() > 2000) {
+            contextoArchivo = contextoArchivo.substring(0, 2000) + "...";
+        }
+
+
 
         // --- PASO 5: Prompt y Llamada a Gemini ---
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
                 reglasJuxa,
-                contextoLegal,
+                contextoLegal + "\n" + contextoArchivo,
                 contextoUsuario,
                 history.isEmpty() ? "Inicio" : history.toString(),
                 currentMessage);
