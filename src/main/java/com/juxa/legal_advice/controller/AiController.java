@@ -39,31 +39,34 @@ public class AiController {
             @RequestParam("userData") String userDataJson,
             @RequestParam("history") String historyJson) {
         try {
-            Map<String, Object> userDataMap
-                    = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-            List<Map<String, Object>> historyList = objectMapper.readValue(historyJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            // 1. Parseo de metadatos
+            Map<String, Object> userDataMap = objectMapper.readValue(userDataJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            List<Map<String, Object>> historyList = objectMapper.readValue(historyJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
 
-            // 1. Extraer texto del archivo si existe
-            String contextoArchivo = "";
+            // 2. Extracción de texto (OCR / Digital)
+            String textoOcr = "";
             if (file != null && !file.isEmpty()) {
-                contextoArchivo = geminiService.extractTextFromFile(file);
+                System.out.println("--- [CONTROLLER] PROCESANDO ARCHIVO: " + file.getOriginalFilename() + " ---");
+                textoOcr = geminiService.extractTextFromFile(file);
             }
 
-            // 2. Reconstruir el payload
+            // 3. Reconstrucción del Payload (Sincronizado con GeminiService)
             Map<String, Object> payload = new HashMap<>();
             payload.put("message", currentMessage);
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
 
-            if (contextoArchivo != null && !contextoArchivo.isEmpty()) {
-                payload.put("contextoArchivo", contextoArchivo);
-            }
+            // Esta es la llave que tu GeminiService busca en la línea 144
+            payload.put("contextoArchivo", textoOcr);
 
-            // 3. Procesar con Gemini
+            // 4. Llamada al servicio
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
             return ResponseEntity.ok(aiResponse);
 
         } catch (Exception e) {
+            System.err.println("--- [ERROR CONTROLLER] --- " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }

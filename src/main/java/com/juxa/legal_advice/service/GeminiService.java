@@ -3,23 +3,42 @@ package com.juxa.legal_advice.service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+// 1. IMPORTS ESPECÍFICOS DE GOOGLE VISION (Sin conflictos)
+import com.google.cloud.vision.v1.AnnotateImageRequest;
+import com.google.cloud.vision.v1.AnnotateImageResponse;
+import com.google.cloud.vision.v1.BatchAnnotateImagesResponse;
+import com.google.cloud.vision.v1.Feature;
+import com.google.cloud.vision.v1.Image; // Esta es la que usaremos como prioritaria
+import com.google.cloud.vision.v1.ImageAnnotatorClient;
+import com.google.protobuf.ByteString;
+
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.util.PromptBuilder;
+
+// 2. LIBRERÍAS DE PROCESAMIENTO DE PDF Y TEXTO
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+
+// 3. SPRING Y LOMBOK
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
 
+// 4. UTILIDADES DE JAVA (Se eliminó java.awt.* para evitar choques)
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.springframework.web.multipart.MultipartFile;
 
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
@@ -119,9 +138,21 @@ public class GeminiService {
         List<Map<String, Object>> history = extractHistory(payload);
 
         // 2. Extracción del texto del archivo (LIMPIO)
-        String textoExtraido = ((String) payload.getOrDefault("contextoArchivo", "")).trim();
-        if (textoExtraido.length() > 2000) {
-            textoExtraido = textoExtraido.substring(0, 2000) + "...";
+        String textoExtraido = "";
+        if (payload.containsKey("contextoArchivo") && payload.get("contextoArchivo") != null) {
+            textoExtraido = ((String) payload.get("contextoArchivo")).trim();
+        }
+
+        // AUDITORÍA CRÍTICA: Si esto sale en logs, el Controller no envió el texto
+        if (textoExtraido.isEmpty()) {
+            System.out.println("--- [ALERTA JUXA] BLOQUE 1 VACÍO: No se recibió texto en 'contextoArchivo' ---");
+        } else {
+            System.out.println("--- [INFO JUXA] BLOQUE 1 CARGADO: " + textoExtraido.length() + " caracteres recibidos ---");
+        }
+
+        // Capacidad de contexto (Ajustado para no saturar la ventana de tokens inicial)
+        if (textoExtraido.length() > 5000) {
+            textoExtraido = textoExtraido.substring(0, 5000) + "... [Texto truncado por extensión]";
         }
 
         // 3. Tareas asíncronas (Vertex y Reglas)
@@ -134,21 +165,21 @@ public class GeminiService {
         String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s.",
                 userData.getName(), userData.getSubcategory());
 
-        // 5. Esperar resultados y UNIR TODO
+        // 5. Esperar resultados
         String contextoLegal = contextFuture.join();
         String reglasJuxa = reglasFuture.join();
 
-        // UNIFICACIÓN FINAL: Sumamos Vertex + Texto del Archivo
-        String contextoTotalParaIA = contextoLegal + "\n\nTEXTO DEL DOCUMENTO ADJUNTO:\n" + textoExtraido;
-
-        // 6. Construir Prompt y llamar a Gemini
+        // 6. Construir Prompt y llamar a Gemini con los 6 argumentos exactos
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
-                reglasJuxa,
-                contextoTotalParaIA,
-                contextoUsuario,
-                history.isEmpty() ? "Inicio" : history.toString(),
-                currentMessage);
+                reglasJuxa,       // Arg 1: Hoja de Ruta (BLOQUE 3)
+                textoExtraido,    // Arg 2: EL ARCHIVO (BLOQUE 1 - PRIORIDAD)
+                contextoLegal,    // Arg 3: Vertex/Internet (BLOQUE 2)
+                contextoUsuario,  // Arg 4: Datos del Cliente
+                history.isEmpty() ? "Inicio" : history.toString(), // Arg 5: Historial
+                currentMessage    // Arg 6: Mensaje actual
+        );
 
+        // 7. Ejecución y procesamiento de respuesta
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
         injectReminderLogic(result, history);
@@ -252,23 +283,63 @@ public class GeminiService {
 
     public String extractTextFromFile(MultipartFile file) {
         String filename = file.getOriginalFilename();
+        StringBuilder extractedText = new StringBuilder();
+
         try {
             if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
-                // Usa PDFBox que ya tienes en tus dependencias
-                try (PDDocument document = PDDocument.load(file.getInputStream())) {
-                    return new PDFTextStripper().getText(document);
+                byte[] fileBytes = file.getBytes();
+                try (PDDocument document = PDDocument.load(fileBytes)) {
+                    // 1. INTENTO DIGITAL (Rápido y económico)
+                    PDFTextStripper stripper = new PDFTextStripper();
+                    String digitalText = stripper.getText(document);
+
+                    // Si detectamos texto real (más de 50 caracteres), lo usamos.
+                    if (digitalText != null && digitalText.trim().length() > 50) {
+                        return digitalText.trim();
+                    }
+
+                    // 2. RESPALDO OCR (Para escaneos/imágenes)
+                    System.out.println("--- PDF SIN TEXTO DETECTADO. INICIANDO GOOGLE VISION OCR ---");
+                    PDFRenderer renderer = new PDFRenderer(document);
+
+                    // Procesamos las primeras 3 páginas para no saturar el tiempo de respuesta
+                    int maxPages = Math.min(document.getNumberOfPages(), 3);
+
+                    try (ImageAnnotatorClient vision = ImageAnnotatorClient.create()) {
+                        for (int i = 0; i < maxPages; i++) {
+                            BufferedImage image = renderer.renderImageWithDPI(i, 300); // 300 DPI para precisión legal
+                            ByteArrayOutputStream os = new ByteArrayOutputStream();
+                            ImageIO.write(image, "png", os);
+
+                            ByteString imgBytes = ByteString.copyFrom(os.toByteArray());
+                            com.google.cloud.vision.v1.Image img = com.google.cloud.vision.v1.Image.newBuilder()
+                                    .setContent(imgBytes)
+                                    .build();
+                            Feature feat = Feature.newBuilder().setType(Feature.Type.DOCUMENT_TEXT_DETECTION).build();
+
+                            AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
+                                    .addFeatures(feat)
+                                    .setImage(img)
+                                    .build();
+
+                            BatchAnnotateImagesResponse response = vision.batchAnnotateImages(List.of(request));
+                            for (AnnotateImageResponse res : response.getResponsesList()) {
+                                if (res.hasError()) continue;
+                                extractedText.append(res.getFullTextAnnotation().getText()).append("\n");
+                            }
+                        }
+                    }
+                    return extractedText.toString().trim();
                 }
             } else if (filename != null && (filename.endsWith(".docx") || filename.endsWith(".doc"))) {
-                // Usa Apache POI (la que agregamos en el paso 1)
                 try (XWPFDocument doc = new XWPFDocument(file.getInputStream())) {
-                    XWPFWordExtractor extractor = new XWPFWordExtractor(doc);
-                    return extractor.getText();
+                    return new XWPFWordExtractor(doc).getText();
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error al leer archivo: " + e.getMessage());
+            System.err.println("Error crítico en extracción (OCR): " + e.getMessage());
         }
-        return ""; // Si falla, devolvemos vacío para no romper el chat
+        return "";
     }
 
     /**

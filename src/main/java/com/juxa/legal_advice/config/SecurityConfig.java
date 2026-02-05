@@ -92,7 +92,8 @@ public class SecurityConfig {
                 "https://pruebasjuxa.web.app",
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://asesorialegal-abogados-284685729356.us-central1.run.app"
+                "https://asesorialegal-abogados-284685729356.us-central1.run.app",
+                "https://asesoriajuridica.tech"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios
