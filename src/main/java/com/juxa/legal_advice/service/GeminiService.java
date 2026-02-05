@@ -293,8 +293,8 @@ public class GeminiService {
                     PDFTextStripper stripper = new PDFTextStripper();
                     String digitalText = stripper.getText(document);
 
-                    // Si detectamos texto real (más de 50 caracteres), lo usamos.
-                    if (digitalText != null && digitalText.trim().length() > 50) {
+                    // Si detectamos texto real (más de 500 caracteres), lo usamos.
+                    if (digitalText != null && digitalText.trim().length() > 500) {
                         return digitalText.trim();
                     }
 
