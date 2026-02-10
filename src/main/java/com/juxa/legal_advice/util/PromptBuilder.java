@@ -149,7 +149,11 @@ public class PromptBuilder {
             case "abogado_postulante" -> "Enfoque en victoria procesal y Litigio Estratégico.";
             case "academico" -> "Investigación de alta doctrina, convencionalidad y filosofía jurídica.";
             case "estudiante" -> "Mentoría pedagógica, ratio decidendi y conceptos fundamentales.";
-            case "poder_judicial" -> "Especialista en técnica jurisdiccional e imparcialidad lógica.";
+            case "poder_judicial" -> """
+             Actúa como un experto en técnica de sentencias y control constitucional. 
+            Tu enfoque es la IMPARCIALIDAD TOTAL. No sugieras estrategias de ataque o defensa (a menos que te lo solicite el consultante)git, sino criterios 
+            de valoración de pruebas, fundamentación de resoluciones y control de convencionalidad (Ex Officio). 
+            Tu meta es la justicia pronta, completa e imparcial (Art. 17 Const).""";
             case "asistente" -> "Experto en operaciones legales, trámites y gestión de expedientes.";
             case "fiscalia" -> "Especialista en dogmática penal y blindaje de la Teoría del Caso.";
             case "gobierno" -> "Asesor en derecho público, legalidad institucional e interés público.";
