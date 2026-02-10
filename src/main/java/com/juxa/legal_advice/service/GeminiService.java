@@ -18,6 +18,7 @@ import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.util.PromptBuilder;
 
 // 2. LIBRERÍAS DE PROCESAMIENTO DE PDF Y TEXTO
+import jakarta.annotation.PostConstruct;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -80,11 +81,18 @@ public class GeminiService {
         return result;
     }
 
-    private String getReglasJuxa() {
-        if (cachedReglasJuxa == null) {
-            cachedReglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
+    @PostConstruct // Se ejecuta al encender el back
+    public void init() {
+        try {
+            this.cachedReglasJuxa = bucketService.readTextFile("Hoja_deRita.csv");
+        } catch (Exception e) {
+            this.cachedReglasJuxa = "Reglas básicas de Juxa."; // Fallback
         }
-        return cachedReglasJuxa;
+    }
+
+    private String getReglasJuxa() {
+
+            return (cachedReglasJuxa != null) ? cachedReglasJuxa : "Reglas generales de asesoría legal JUXA.";
     }
 
     /* Esta versión se utilizaba cuando se requería buscar archivo por archivo
@@ -137,51 +145,57 @@ public class GeminiService {
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
         List<Map<String, Object>> history = extractHistory(payload);
 
-        // 2. Extracción del texto del archivo (LIMPIO)
+        // 2. Extracción del texto del archivo
         String textoExtraido = "";
         if (payload.containsKey("contextoArchivo") && payload.get("contextoArchivo") != null) {
             textoExtraido = ((String) payload.get("contextoArchivo")).trim();
         }
 
-        // AUDITORÍA CRÍTICA: Si esto sale en logs, el Controller no envió el texto
-        if (textoExtraido.isEmpty()) {
-            System.out.println("--- [ALERTA JUXA] BLOQUE 1 VACÍO: No se recibió texto en 'contextoArchivo' ---");
-        } else {
-            System.out.println("--- [INFO JUXA] BLOQUE 1 CARGADO: " + textoExtraido.length() + " caracteres recibidos ---");
-        }
-
-        // Capacidad de contexto (Ajustado para no saturar la ventana de tokens inicial)
+        // Seguridad de tokens
         if (textoExtraido.length() > 5000) {
-            textoExtraido = textoExtraido.substring(0, 5000) + "... [Texto truncado por extensión]";
+            textoExtraido = textoExtraido.substring(0, 5000) + "... [Texto truncado]";
         }
 
-        // 3. Tareas asíncronas (Vertex y Reglas)
+        // 3. Tareas asíncronas
         CompletableFuture<String> contextFuture = CompletableFuture.supplyAsync(() ->
                 vertexSearchService.searchLegalKnowledge(currentMessage)
         );
         CompletableFuture<String> reglasFuture = CompletableFuture.supplyAsync(this::getReglasJuxa);
 
-        // 4. Contexto Usuario
+        // 4. Contexto Usuario e Inventario
         String contextoUsuario = String.format("CLIENTE: %s. ASUNTO: %s.",
                 userData.getName(), userData.getSubcategory());
 
-        // 5. Esperar resultados
-        String contextoLegal = contextFuture.join();
-        String reglasJuxa = reglasFuture.join();
+        List<String> formatosReales = bucketService.listAvailableFormats();
+        String inventarioFormatos = "\n### FORMATOS DISPONIBLES:\n"
+                + (formatosReales.isEmpty() ? "No disponibles." : String.join(", ", formatosReales));
 
-        // 6. Construir Prompt y llamar a Gemini con los 6 argumentos exactos
+        // 5. ESPERAR RESULTADOS Y SANITIZAR (CAMBIO CRÍTICO)
+        String contextoLegal = contextFuture.join();
+        String reglasRaw = reglasFuture.join();
+
+        // OFUSCACIÓN: Reemplazamos el nombre real del archivo por un término genérico.
+        // Así, si la IA intenta revelar el nombre del archivo, el filtro de seguridad la detectará.
+        String reglasSanitizadas = reglasRaw.replaceAll("Hoja_deRita.csv", "DIRECTRICES_OPERATIVAS_INTERNAS");
+
+        // Unimos las reglas con el inventario de formatos
+        String bloqueInstrucciones = reglasSanitizadas + inventarioFormatos;
+
+        // 6. Construir Prompt con los 6 argumentos exactos
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
-                reglasJuxa,       // Arg 1: Hoja de Ruta (BLOQUE 3)
-                textoExtraido,    // Arg 2: EL ARCHIVO (BLOQUE 1 - PRIORIDAD)
-                contextoLegal,    // Arg 3: Vertex/Internet (BLOQUE 2)
-                contextoUsuario,  // Arg 4: Datos del Cliente
+                bloqueInstrucciones, // Arg 1: Instrucciones sanitizadas
+                textoExtraido,       // Arg 2: Contenido del archivo (Fuente de verdad)
+                contextoLegal,       // Arg 3: Soporte normativo
+                contextoUsuario,     // Arg 4: Perfil cliente
                 history.isEmpty() ? "Inicio" : history.toString(), // Arg 5: Historial
-                currentMessage    // Arg 6: Mensaje actual
+                currentMessage       // Arg 6: Mensaje actual
         );
 
-        // 7. Ejecución y procesamiento de respuesta
+        // 7. Ejecución y Procesamiento Estructurado
+        // Aquí es donde entra tu método extractStructuredResponse con la lista negra
         String fullResponse = geminiClient.callGemini(prompt);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
+
         injectReminderLogic(result, history);
 
         return result;
@@ -220,34 +234,54 @@ public class GeminiService {
     // Nuevo extractor estructurado: diagnosis + suggestions
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
+            // 1. Navegación en el árbol de respuesta de Google
             JsonNode root = objectMapper.readTree(response);
-            String rawText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+            String rawText = root.path("candidates").get(0)
+                    .path("content").path("parts")
+                    .get(0).path("text").asText();
 
-            int start = rawText.indexOf("{");
-            int end = rawText.lastIndexOf("}");
+            // --- CAPA DE SEGURIDAD: EL INTERCEPTOR ---
+            // Si el texto contiene tus secretos, cortamos la comunicación de inmediato.
+            List<String> fugasDetectadas = List.of(
+                    "Regla #",
+                    "Hoja_deRita",
+                    "JUXIA_IDENTITY",
+                    "Bloque 3",
+                    "instrucción de sistema"
+            );
 
-            if (start != -1 && end != -1) {
-                String cleanJson = rawText.substring(start, end + 1);
-                JsonNode parsed = objectMapper.readTree(cleanJson);
-                Map<String, Object> result = new HashMap<>();
-
-                // SINCRONIZACIÓN: Leemos "text" porque es lo que pide el PromptBuilder
-                String responseText = parsed.has("text") ? parsed.path("text").asText() : parsed.path("diagnosis").asText();
-                result.put("text", responseText);
-
-                List<String> suggestions = new ArrayList<>();
-                if (parsed.has("suggestions")) {
-                    parsed.path("suggestions").forEach(node -> suggestions.add(node.asText()));
-                }
-
-                result.put("text", responseText);
-                result.put("suggestions", suggestions);
-                result.put("downloadPdf", parsed.path("downloadPdf").asBoolean());
-                return result;
+            if (fugasDetectadas.stream().anyMatch(rawText::contains)) {
+                System.err.println("--- [ALERTA DE SEGURIDAD] Intento de fuga interceptado ---");
+                return getSecurityFallback();
             }
-            return Map.of("text", rawText, "suggestions", List.of(), "downloadPdf", false);
+
+            // 2. LIMPIEZA QUIRÚRGICA
+            String cleanJson = rawText.trim();
+            if (cleanJson.contains("{")) {
+                cleanJson = cleanJson.substring(cleanJson.indexOf("{"), cleanJson.lastIndexOf("}") + 1);
+            } else {
+                // Si no hay llaves, la IA respondió en texto plano (ignoró el JSON)
+                throw new RuntimeException("Respuesta sin estructura JSON");
+            }
+
+            // 3. Conversión a Map
+            Map<String, Object> result = objectMapper.readValue(cleanJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+
+            // 4. Normalización para Paws
+            if (!result.containsKey("text") && result.containsKey("diagnosis")) {
+                result.put("text", result.get("diagnosis"));
+            }
+
+            // 5. Garantía de campos
+            result.putIfAbsent("suggestions", new java.util.ArrayList<>(List.of("Reintentar análisis", "Consultar base legal")));
+            result.putIfAbsent("downloadPdf", false);
+
+            return result;
+
         } catch (Exception e) {
-            return Map.of("text", "Error de formato en la respuesta legal.", "suggestions", List.of());
+            System.err.println("--- [ERROR DE PARSEO/SEGURIDAD JUXA] ---: " + e.getMessage());
+            return getSecurityFallback();
         }
     }
 
@@ -359,5 +393,13 @@ public class GeminiService {
             }
         }
         return history;
+    }
+
+    private Map<String, Object> getSecurityFallback() {
+        Map<String, Object> fallback = new HashMap<>();
+        fallback.put("text", "### Aviso de Integridad Técnica\n---\nHe detectado una instrucción que compromete mis protocolos de seguridad o la estructura de mi dictamen. Como colaborador jurídico, mi prioridad es la confidencialidad y el rigor legal. Por favor, reformula tu consulta técnica.");
+        fallback.put("suggestions", List.of("Reintentar análisis jurídico", "Consultar base legal", "Verificar documentos"));
+        fallback.put("downloadPdf", false);
+        return fallback;
     }
 }

@@ -6,6 +6,7 @@ import com.juxa.legal_advice.model.DiagnosisResponse;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.DiagnosisRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public class DiagnosisService {
     }
 
     // 2. Guardar interacción del chat (VERSIÓN CORREGIDA Y SINCRONIZADA)
+    @Async
     public void saveFromChat(Map<String, Object> payload, String aiResponse) {
         try {
             // 1. Extraemos el mensaje usando el nombre estándar 'message'
