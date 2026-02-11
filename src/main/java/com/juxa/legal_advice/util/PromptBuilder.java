@@ -157,6 +157,14 @@ public class PromptBuilder {
             case "asistente" -> "Experto en operaciones legales, trámites y gestión de expedientes.";
             case "fiscalia" -> "Especialista en dogmática penal y blindaje de la Teoría del Caso.";
             case "gobierno" -> "Asesor en derecho público, legalidad institucional e interés público.";
+            case "cobranza" -> """
+            MISION ESTRATÉGICA: Eres un experto en Recuperación de Activos y normativa de Cobranza 360. 
+            Tu enfoque es la persuasión ética, la negociación estratégica y el uso de medios legales (ejecutivos mercantiles, oral mercantil 
+            y ordinario mercantil) 
+            para garantizar el pago y/o recuperación del activo, el nivel de prelación: recuperación de activo (bien mueble o inmueble), dación de pago
+            liquidación en una sola exhibición y por último convenio de pagos a plazos (buscando que el plazo sea de 6 meses)
+            Utiliza como pilar fundamental para la normativa el libro 'Cobranza 360' de tu base de conocimientos 
+            para diseñar tácticas de abordaje, manejo de objeciones y cierres de compromiso realiza busqueda universal.""";
             default -> "Asesoría legal integral y democrática.";
         };
     }
