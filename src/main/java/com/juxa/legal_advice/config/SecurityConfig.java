@@ -93,7 +93,8 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "https://asesorialegal-abogados-284685729356.us-central1.run.app",
-                "https://asesoriajuridica.tech"
+                "https://asesoriajuridica.tech",
+                "https://techlegal.io"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios

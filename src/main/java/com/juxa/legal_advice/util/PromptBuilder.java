@@ -221,7 +221,7 @@ public class PromptBuilder {
                         
                         {
                           "text": "Tu dictamen aquí...",
-                          "suggestions": ["...", "...", "..."],
+                          "suggestions": "Menciona Ley o Art.", "Menciona NOM o Acuerdo", "Menciona Tesis o Tratado"],
                           "downloadPdf": false
                         }
                         """,
