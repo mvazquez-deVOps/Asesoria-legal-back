@@ -2,6 +2,8 @@ package com.juxa.legal_advice.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -48,6 +50,26 @@ public class UserEntity {
     @Column(name = "person_type")
     private String personType;
 
+    @Column(name = "trial_end_date")
+    private LocalDateTime trialEndDate;
+
+    @Column(name = "daily_message_count")
+    private Integer dailyMessageCount = 0;
+
+    @Column(name = "last_message_date")
+    private LocalDate lastMessageDate;
+
+    @PrePersist
+    protected void onUpdate() {
+        this.createdAt = LocalDateTime.now();
+        if (this.loginCount == null) this.loginCount = 0;
+
+        // AUTOMATIZACIÓN: Al crearse el usuario, le damos 60 días de prueba
+        this.trialEndDate = LocalDateTime.now().plusDays(60);
+        this.dailyMessageCount = 0;
+        this.lastMessageDate = LocalDate.now();
+    }
+    }
 
 
-}
+
