@@ -57,6 +57,8 @@ dependencies {
 	implementation 'com.google.cloud:google-cloud-vision:3.22.0'
 	// Herramienta para convertir PDF a Imágenes (necesaria para OCR)
 	implementation 'org.apache.pdfbox:pdfbox-tools:2.0.27'
+	//Enviar reportes a correo de soporte
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 tasks.named('test') {

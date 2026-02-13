@@ -274,7 +274,23 @@ public class GeminiService {
             }
 
             // 5. Garantía de campos
-            result.putIfAbsent("suggestions", new java.util.ArrayList<>(List.of("Reintentar análisis", "Consultar base legal")));
+            if (!result.containsKey("suggestions") || ((List<?>)result.get("suggestions")).isEmpty()) {
+                result.put("suggestions", new java.util.ArrayList<>(List.of(
+                        "Consultar base legal",
+                        "Verificar jurisprudencia"
+                )));
+            }
+
+            // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
+            if (!result.containsKey("suggestedPrompts") || ((List<?>)result.get("suggestedPrompts")).isEmpty()) {
+                // Si la IA no los genera, inyectamos prompts de seguimiento basados en el contexto legal
+                result.put("suggestedPrompts", new java.util.ArrayList<>(List.of(
+                        "¿Cuáles son los siguientes pasos legales?",
+                        "¿Qué pruebas necesito reunir?",
+                        "Analizar riesgos de este caso"
+                )));
+            }
+
             result.putIfAbsent("downloadPdf", false);
 
             return result;
@@ -399,6 +415,7 @@ public class GeminiService {
         Map<String, Object> fallback = new HashMap<>();
         fallback.put("text", "### Aviso de Integridad Técnica\n---\nHe detectado una instrucción que compromete mis protocolos de seguridad o la estructura de mi dictamen. Como colaborador jurídico, mi prioridad es la confidencialidad y el rigor legal. Por favor, reformula tu consulta técnica.");
         fallback.put("suggestions", List.of("Reintentar análisis jurídico", "Consultar base legal", "Verificar documentos"));
+        fallback.put("suggestedPrompts", List.of("¿Cómo puedo reformular mi consulta?", "Verificar protocolos de seguridad", "Siguientes pasos recomendados"));
         fallback.put("downloadPdf", false);
         return fallback;
     }
