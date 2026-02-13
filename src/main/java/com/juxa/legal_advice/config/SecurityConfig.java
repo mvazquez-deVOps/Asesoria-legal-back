@@ -74,6 +74,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/pdf/**").authenticated()
+                        .requestMatchers("/api/denuncias/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

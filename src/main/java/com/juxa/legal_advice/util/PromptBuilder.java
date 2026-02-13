@@ -87,9 +87,12 @@ public class PromptBuilder {
                    - No uses preguntas genéricas.
                    - Usa nombres cortos y técnicos (ej: "Art. 14 Constitucional", "NOM-012-SSA3", "Ley General de Salud").
             
+            3. Campo "suggestedPrompts": Lista de EXACTAMENTE 3 frases cortas y accionables que el usuario puede pulsar para continuar la estrategia (ej: "Redactar demanda", "Calcular términos", "¿Cómo redacto la demanda?", "Verificar plazos de prescripción").
+            
             {
               "text": "### Análisis Doctrinal\\n---\\nContenido con **fundamentación**...\\n\\n### Estrategia Sugerida\\n---\\n* Paso 1...\\n\\n¿Deseas profundizar en algún criterio?",
               "suggestions": ["Ley/Norma 1", "Acuerdo/Tratado 2", "Artículo/Jurisprudencia 3"],
+              "strategicPrompts": ["Acción 1", "Acción 2", "Acción 3"],
               "downloadPdf": false
             }   
             """;
