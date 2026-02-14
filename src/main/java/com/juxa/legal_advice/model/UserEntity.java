@@ -38,11 +38,6 @@ public class UserEntity {
     @Column(name = "login_count")
     private Integer loginCount = 0;
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        if (this.loginCount == null) this.loginCount = 0;
-    }
     @Builder.Default
     @Column(name = "subscription_plan")
     private String subscriptionPlan = "FREE"; // Valor por defecto
@@ -60,14 +55,17 @@ public class UserEntity {
     private LocalDate lastMessageDate;
 
     @PrePersist
-    protected void onUpdate() {
+    protected void onCreate() {
+        // 1. Tiempos base
         this.createdAt = LocalDateTime.now();
-        if (this.loginCount == null) this.loginCount = 0;
 
-        // AUTOMATIZACIÓN: Al crearse el usuario, le damos 60 días de prueba
-        this.trialEndDate = LocalDateTime.now().plusDays(60);
+        // 2. Inicialización de contadores
+        if (this.loginCount == null) this.loginCount = 0;
         this.dailyMessageCount = 0;
         this.lastMessageDate = LocalDate.now();
+
+        // 3. Lógica de Negocio: 60 días de prueba (Trial)
+        this.trialEndDate = LocalDateTime.now().plusDays(60);
     }
     }
 
