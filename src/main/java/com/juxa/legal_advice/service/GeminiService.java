@@ -148,7 +148,9 @@ public class GeminiService {
         // 2. Extracción del texto del archivo
         String textoExtraido = "";
         if (payload.containsKey("contextoArchivo") && payload.get("contextoArchivo") != null) {
-            textoExtraido = ((String) payload.get("contextoArchivo")).trim();
+            textoExtraido = ((String) payload.get("contextoArchivo")).trim()
+                    .replace("\"", "'")
+                    .replace("\n", " ");
         }
 
         // Seguridad de tokens
@@ -243,11 +245,9 @@ public class GeminiService {
             // --- CAPA DE SEGURIDAD: EL INTERCEPTOR ---
             // Si el texto contiene tus secretos, cortamos la comunicación de inmediato.
             List<String> fugasDetectadas = List.of(
-                    "Regla #",
-                    "Hoja_deRita",
-                    "JUXIA_IDENTITY",
-                    "Bloque 3",
-                    "instrucción de sistema"
+                    "Hoja_deRita.csv",
+                    "DIRECTRICES_OPERATIVAS_INTERNAS", // Este es el alias que usas para ofuscar
+                    "SYSTEM_INSTRUCTION_BYPASS"
             );
 
             if (fugasDetectadas.stream().anyMatch(rawText::contains)) {
