@@ -283,7 +283,6 @@ public class GeminiService {
 
             // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
             if (!result.containsKey("suggestedPrompts") || ((List<?>)result.get("suggestedPrompts")).isEmpty()) {
-                // Si la IA no los genera, inyectamos prompts de seguimiento basados en el contexto legal
                 result.put("suggestedPrompts", new java.util.ArrayList<>(List.of(
                         "¿Cuáles son los siguientes pasos legales?",
                         "¿Qué pruebas necesito reunir?",
