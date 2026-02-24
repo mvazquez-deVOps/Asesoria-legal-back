@@ -89,9 +89,14 @@ public class PromptBuilder {
                - Al final del campo "text", añade una sección llamada ### Fuentes Consultadas.
                        - Lista las URLs o nombres de documentos que utilizaste para fundamentar el dictamen.
                        ""\";
-            2. Campo "suggestions": DEBE contener ÚNICAMENTE una lista de EXACTAMENTE 3 recursos normativos específicos (Leyes, Acuerdos, Normas Oficiales o Tratados) que el usuario debería consultar para profundizar en el caso actual.\s
-                   - No uses preguntas genéricas, PROHIBIDO poner preguntas o acciones aquí.
-                   - Usa nombres cortos y técnicos (ej: "Art. 14 Constitucional", "NOM-012-SSA3", "Ley General de Salud").
+            2. Campo "suggestions": 2. Campo "suggestions": DEBE contener una lista de EXACTAMENTE 3 objetos JSON con recursos normativos específicos (Leyes, Acuerdos, Normas Oficiales o Tratados) que el usuario debería consultar para profundizar en el caso actual.
+                - Formato de cada objeto:
+                    {
+                    "titulo": "Artículos aplicables (Ej. Artículo 37, fracciones III y VII)",
+                    "ley": "Nombre de la ley, código o jurisprudencia (Ej. LEY FEDERAL DE PROTECCIÓN DE DATOS...)",
+                    "relevancia": "ALTA, MEDIA o BAJA",
+                    "explicacion": "Explicación técnica de su aplicación al caso."
+                    }
             
             3. Campo "suggestedPrompts": DEBE contener ÚNICAMENTE frases de acción o preguntas de seguimiento para el usuario (exactamente 3).
                    - Ejemplo: ["¿Cómo redacto la demanda?", "Verificar plazos de prescripción", "Analizar pruebas"].
@@ -99,7 +104,14 @@ public class PromptBuilder {
             
             {
               "text": "### Análisis Doctrinal\\n---\\nContenido con **fundamentación**...\\n\\n### Estrategia Sugerida\\n---\\n* Paso 1...\\n\\n¿Deseas profundizar en algún criterio?",
-              "suggestions": ["Ley/Norma 1", "Acuerdo/Tratado 2", "Artículo/Jurisprudencia 3"],
+              "suggestions": [
+                  {
+                    "titulo": "Artículo 1084",
+                    "ley": "CÓDIGO DE COMERCIO",
+                    "relevancia": "ALTA",
+                    "explicacion": "Evaluar la procedencia de la condena al pago de gastos y costas procesales."
+                  }
+              ],
               "suggestedPrompts": ["Acción 1", "Acción 2", "Acción 3"],
               "downloadPdf": false
             }   
@@ -255,7 +267,15 @@ public class PromptBuilder {
                         
                         {
                           "text": "Tu dictamen aquí...",
-                          "suggestions": ["Menciona Ley o Art.", "Menciona NOM o Acuerdo", "Menciona Tesis o Tratado"],
+                          "suggestions": [
+                            {
+                              "titulo": "Artículo 37, fracciones III y VII",
+                              "ley": "LEY FEDERAL DE PROTECCIÓN DE DATOS PERSONALES EN POSESIÓN DE LOS PARTICULARES",
+                              "relevancia": "ALTA",
+                              "explicacion": "Breve explicación técnica de cómo aplica al caso."
+                            }
+                          ],
+                          "suggestedPrompts": ["Acción 1", "Acción 2", "Acción 3"],
                           "downloadPdf": false
                         }
                         """,
