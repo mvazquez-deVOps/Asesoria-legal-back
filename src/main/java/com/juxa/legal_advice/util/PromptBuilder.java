@@ -89,7 +89,7 @@ public class PromptBuilder {
                - Al final del campo "text", añade una sección llamada ### Fuentes Consultadas.
                        - Lista las URLs o nombres de documentos que utilizaste para fundamentar el dictamen.
                        ""\";
-            2. Campo "suggestions": 2. Campo "suggestions": DEBE contener una lista de EXACTAMENTE 3 objetos JSON con recursos normativos específicos (Leyes, Acuerdos, Normas Oficiales o Tratados) que el usuario debería consultar para profundizar en el caso actual.
+            2. Campo "suggestions": DEBE contener una lista de EXACTAMENTE 3 objetos JSON con recursos normativos específicos (Leyes, Acuerdos, Normas Oficiales o Tratados) que el usuario debería consultar para profundizar en el caso actual.
                 - Formato de cada objeto:
                     {
                     "titulo": "Artículos aplicables (Ej. Artículo 37, fracciones III y VII)",

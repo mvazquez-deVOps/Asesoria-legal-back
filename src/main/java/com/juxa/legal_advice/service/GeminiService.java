@@ -276,9 +276,28 @@ public class GeminiService {
             // 5. Garantía de campos
             if (!result.containsKey("suggestions") || ((List<?>)result.get("suggestions")).isEmpty()) {
                 result.put("suggestions", new java.util.ArrayList<>(List.of(
-                        "Consultar base legal",
-                        "Verificar jurisprudencia"
+                        Map.of(
+                                "titulo", "Análisis en proceso",
+                                "ley", "SISTEMA JUXA",
+                                "relevancia", "MEDIA",
+                                "explicacion", "El modelo no arrojó sugerencias estructuradas. Por favor reformula la consulta."
+                        )
                 )));
+            } else {
+                // BLINDAJE: Si la IA se equivoca y manda un texto simple, lo convertimos a objeto
+                List<?> suggestionsList = (List<?>) result.get("suggestions");
+                if (!suggestionsList.isEmpty() && suggestionsList.get(0) instanceof String) {
+                    List<Map<String, String>> converted = new java.util.ArrayList<>();
+                    for (Object str : suggestionsList) {
+                        converted.add(Map.of(
+                                "titulo", "Sugerencia Legal",
+                                "ley", "Referencia Técnica",
+                                "relevancia", "MEDIA",
+                                "explicacion", str.toString()
+                        ));
+                    }
+                    result.put("suggestions", converted);
+                }
             }
 
             // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
@@ -413,7 +432,14 @@ public class GeminiService {
     private Map<String, Object> getSecurityFallback() {
         Map<String, Object> fallback = new HashMap<>();
         fallback.put("text", "### Aviso de Integridad Técnica\n---\nHe detectado una instrucción que compromete mis protocolos de seguridad o la estructura de mi dictamen. Como colaborador jurídico, mi prioridad es la confidencialidad y el rigor legal. Por favor, reformula tu consulta técnica.");
-        fallback.put("suggestions", List.of("Reintentar análisis jurídico", "Consultar base legal", "Verificar documentos"));
+        fallback.put("suggestions", List.of(
+                Map.of(
+                        "titulo", "Revisión de Seguridad",
+                        "ley", "PROTOCOLOS JUXA",
+                        "relevancia", "ALTA",
+                        "explicacion", "La consulta fue bloqueada por políticas de integridad. Intenta reformular."
+                )
+        ));
         fallback.put("suggestedPrompts", List.of("¿Cómo puedo reformular mi consulta?", "Verificar protocolos de seguridad", "Siguientes pasos recomendados"));
         fallback.put("downloadPdf", false);
         return fallback;
