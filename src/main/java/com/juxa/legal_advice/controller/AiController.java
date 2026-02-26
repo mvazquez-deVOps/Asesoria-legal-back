@@ -1,6 +1,9 @@
 package com.juxa.legal_advice.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.api.gax.paging.Page;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.Storage;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
@@ -27,6 +30,7 @@ public class AiController {
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final AiBucketService aiBucketService; // inyección del bucket
+    private final Storage storage;
 
     @PostMapping("/generate-initial-diagnosis")
     public ResponseEntity<Map<String, Object>> startDiagnosis(@RequestBody UserDataDTO userData) {
@@ -76,9 +80,10 @@ public class AiController {
             }
 
             // 3. Lectura del bucket (ejemplo: Hoja_deRita.csv)
-            String contextoBucket = aiBucketService.readTextFile("Hoja_deRita.csv");
+            String directrices = aiBucketService.readTextFile("Hoja_deRita.csv");
+            String contextoCarpetas = generarContextoBucket();
+            String contextoBucket = directrices + "\n \n" + contextoCarpetas;
             System.out.println("--- [CONTROLLER] CONTEXTO DEL BUCKET ---\n" + contextoBucket);
-
             // 4. Reconstrucción del Payload
             Map<String, Object> payload = new HashMap<>();
             payload.put("message", currentMessage);
@@ -96,5 +101,45 @@ public class AiController {
             System.err.println("--- [ERROR CONTROLLER] --- " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
+    }
+
+
+    // Método auxiliar para generar el bloque de protocolo
+    private String generarContextoBucket() {
+        Map<String, String> carpetaContexto = Map.of(
+                "Camara_de_Diputados/", "Acuerdos legislativos y convocatorias solemnes.",
+                "FORMATOS/", "Plantillas procesales para redactar escritos.",
+                "Mercantil/", "Normativa mercantil y títulos de crédito.",
+                "Marco-Recomendable/", "Guías doctrinales y criterios recomendados.",
+                "Imprescindibles/", "Documentos críticos de referencia (amparos, sentencias, UNESCO, pueblos indígenas, ética).",
+                "Códigos_Civiles_Penales_Procedimientos/", "Códigos civiles, penales y procesales de los estados de México."
+        );
+
+        StringBuilder contexto = new StringBuilder("### PROTOCOLO DE CONSULTA INTERNA (BUCKET)\n");
+        carpetaContexto.forEach((carpeta, descripcion) ->
+                contexto.append("- ").append(carpeta).append(": ").append(descripcion).append("\n")
+        );
+
+        // Recorrer subcarpetas de Códigos_Civiles_Penales_Procedimientos
+        Page<Blob> blobs = storage.list(
+                "asesoria-legal-bucket",
+                Storage.BlobListOption.prefix("Códigos_Civiles_Penales_Procedimientos/"),
+                Storage.BlobListOption.currentDirectory()
+        );
+
+        contexto.append("   Subcarpetas estatales:\n");
+        for (Blob blob : blobs.iterateAll()) {
+            if (blob.isDirectory()) {
+                String nombreEstado = blob.getName()
+                        .replace("Códigos_Civiles_Penales_Procedimientos/", "")
+                        .replace("/", "")
+                        .replace("_", " ");
+                contexto.append("   - ").append(nombreEstado)
+                        .append(" → códigos civiles, penales y procesales de ")
+                        .append(nombreEstado).append("\n");
+            }
+        }
+
+        return contexto.toString();
     }
 }

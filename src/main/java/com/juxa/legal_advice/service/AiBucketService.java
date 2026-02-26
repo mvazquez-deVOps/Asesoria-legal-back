@@ -94,6 +94,32 @@ public class AiBucketService {
         return files;
     }
 
+    public List<String> listStateCodes() {
+        List<String> estados = new ArrayList<>();
+        try {
+            Page<Blob> blobs = storage.list(
+                    bucketName,
+                    Storage.BlobListOption.prefix("Códigos_Civiles_Penales_Procedimientos/"),
+                    Storage.BlobListOption.currentDirectory()
+            );
+
+            for (Blob blob : blobs.iterateAll()) {
+                if (blob.isDirectory()) {
+                    String nombreEstado = blob.getName()
+                            .replace("Códigos_Civiles_Penales_Procedimientos/", "")
+                            .replace("/", "")
+                            .replace("_", " ");
+                    estados.add(nombreEstado);
+                    System.out.println("Estado encontrado: " + nombreEstado);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error listando subcarpetas estatales: " + e.getMessage());
+        }
+        return estados;
+    }
+
+
     /**
      * Lista las plantillas de la carpeta FORMATOS
      */
