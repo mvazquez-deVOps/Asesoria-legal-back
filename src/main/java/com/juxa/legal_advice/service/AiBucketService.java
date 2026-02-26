@@ -14,24 +14,32 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AiBucketService {
-    private final Storage storage = StorageOptions.getDefaultInstance().getService();
+
+    // Inicialización explícita con projectId para evitar problemas con credenciales implícitas
+    private final Storage storage = StorageOptions.newBuilder()
+            .setProjectId("asesoria-legal-juxa-83a12")
+            .build()
+            .getService();
+
     private final String bucketName = "asesoria-legal-bucket";
 
-    // CACHÉ: Evita latencia y costos de lectura repetitiva en Google Cloud
+    // CACHÉ: evita latencia y costos de lectura repetitiva en Google Cloud
     private final Map<String, String> contentCache = new ConcurrentHashMap<>();
 
     public String readTextFile(String fileName) {
-        // Si ya lo leímos antes, lo entregamos de inmediato
         if (contentCache.containsKey(fileName)) {
             return contentCache.get(fileName);
         }
 
         try {
             Blob blob = storage.get(bucketName, fileName);
-            if (blob == null) return "";
+            if (blob == null) {
+                System.err.println("Archivo no encontrado en bucket: " + fileName);
+                return "";
+            }
 
             String content = new String(blob.getContent(), StandardCharsets.UTF_8);
-            contentCache.put(fileName, content); // Guardamos en memoria
+            contentCache.put(fileName, content);
             return content;
         } catch (Exception e) {
             System.err.println("Error en Bucket (Text): " + e.getMessage());
@@ -40,13 +48,15 @@ public class AiBucketService {
     }
 
     public String readPdfFile(String fileName) {
-        // Los PDFs también se cachean para ahorrar procesamiento de PDFBox
         if (contentCache.containsKey(fileName)) {
             return contentCache.get(fileName);
         }
 
         Blob blob = storage.get(bucketName, fileName);
-        if (blob == null) return "";
+        if (blob == null) {
+            System.err.println("Archivo PDF no encontrado en bucket: " + fileName);
+            return "";
+        }
 
         try (PDDocument document = PDDocument.load(blob.getContent())) {
             PDFTextStripper stripper = new PDFTextStripper();
@@ -54,13 +64,14 @@ public class AiBucketService {
             contentCache.put(fileName, text);
             return text;
         } catch (Exception e) {
-            return "Error técnico al procesar el documento jurídico: " + e.getMessage();
+            System.err.println("Error técnico al procesar PDF: " + e.getMessage());
+            return "";
         }
     }
 
     /**
-     * Lista solo los documentos de la base de conocimientos,
-     * ignorando archivos de configuración y carpetas de sistema.
+     * Lista los documentos de la base de conocimientos,
+     * ignorando carpetas de sistema y logs, pero ya no excluye "Hoja_deRita".
      */
     public List<String> listKnowledgeDocuments() {
         List<String> files = new ArrayList<>();
@@ -69,11 +80,13 @@ public class AiBucketService {
             for (Blob blob : blobs.iterateAll()) {
                 String name = blob.getName();
 
-                // Filtros de exclusión
-                if (name.contains("Hoja_deRita") || name.startsWith("logs/") || blob.isDirectory()) {
+                // Filtros de exclusión corregidos
+                if (name.startsWith("logs/") || blob.isDirectory()) {
                     continue;
                 }
+
                 files.add(name);
+                System.out.println("Documento encontrado: " + name); // Log de depuración
             }
         } catch (Exception e) {
             System.err.println("Error listando documentos: " + e.getMessage());
@@ -82,17 +95,16 @@ public class AiBucketService {
     }
 
     /**
-     * Método específico para listar las plantillas de la carpeta FORMATOS
-     * Esto ayudará a JUXA a saber qué opciones tiene para redactar.
+     * Lista las plantillas de la carpeta FORMATOS
      */
     public List<String> listAvailableFormats() {
         List<String> formats = new ArrayList<>();
         try {
-            // Asumimos que tus formatos están en una carpeta virtual llamada "FORMATOS/"
             Page<Blob> blobs = storage.list(bucketName, Storage.BlobListOption.prefix("FORMATOS/"));
             for (Blob blob : blobs.iterateAll()) {
                 if (!blob.getName().equals("FORMATOS/") && !blob.isDirectory()) {
                     formats.add(blob.getName());
+                    System.out.println("Formato encontrado: " + blob.getName()); // Log de depuración
                 }
             }
         } catch (Exception e) {
