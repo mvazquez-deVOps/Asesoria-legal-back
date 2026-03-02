@@ -53,15 +53,27 @@ public class AiController {
             List<Map<String, Object>> historyList = objectMapper.readValue(historyJson,
                     new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
 
-            String email =
-                    (String) userDataMap.get("email");
-            UserEntity user = userRepository.findByEmail(email).orElseThrow();
+            String email = (String) userDataMap.get("email");
+            UserEntity user = null;
 
-            //Restricciones
+            // 1. Buscamos al usuario de forma segura
+            if (email != null && !email.isEmpty()) {
+                user = userRepository.findByEmail(email).orElse(null);
+            }
+
+            // 2. EL CANDADO: Si no existe en la base de datos, lo bloqueamos elegantemente
+            if (user == null) {
+                return ResponseEntity.status(401).body(Map.of(
+                        "error", "Acceso denegado",
+                        "message", "Debes estar registrado e iniciar sesión para usar el chat de JUXA."
+                ));
+            }
+
+            // 3. Restricciones de plan
             boolean esPremium = "PREMIUM".equals(user.getSubscriptionPlan());
             boolean esProof = user.getTrialEndDate() != null && LocalDateTime.now().isBefore(user.getTrialEndDate());
-            if (!esPremium && !esProof) {
 
+            if (!esPremium && !esProof) {
                 // Resetear contador si es un nuevo día
                 if (user.getLastMessageDate() == null || !user.getLastMessageDate().equals(LocalDate.now())) {
                     user.setDailyMessageCount(0);
