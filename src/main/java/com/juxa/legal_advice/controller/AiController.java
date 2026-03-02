@@ -52,12 +52,27 @@ public class AiController {
                     new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
 
             String email = (String) userDataMap.get("email");
-            UserEntity user = userRepository.findByEmail(email).orElseThrow();
+            UserEntity user = null;
 
-            // Restricciones de plan
+            // 1. Buscamos al usuario de forma segura
+            if (email != null && !email.isEmpty()) {
+                user = userRepository.findByEmail(email).orElse(null);
+            }
+
+            // 2. EL CANDADO: Si no existe en la base de datos, lo bloqueamos elegantemente
+            if (user == null) {
+                return ResponseEntity.status(401).body(Map.of(
+                        "error", "Acceso denegado",
+                        "message", "Debes estar registrado e iniciar sesión para usar el chat de JUXA."
+                ));
+            }
+
+            // 3. Restricciones de plan
             boolean esPremium = "PREMIUM".equals(user.getSubscriptionPlan());
             boolean esProof = user.getTrialEndDate() != null && LocalDateTime.now().isBefore(user.getTrialEndDate());
+
             if (!esPremium && !esProof) {
+                // Resetear contador si es un nuevo día
                 if (user.getLastMessageDate() == null || !user.getLastMessageDate().equals(LocalDate.now())) {
                     user.setDailyMessageCount(0);
                     user.setLastMessageDate(LocalDate.now());
@@ -119,6 +134,45 @@ public class AiController {
             System.err.println("--- [ERROR CONTROLLER ARCHITECT] --- " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
+
+    // Método auxiliar para generar el bloque de protocolo
+    private String generarContextoBucket() {
+        Map<String, String> carpetaContexto = Map.of(
+                "Camara_de_Diputados/", "Acuerdos legislativos y convocatorias solemnes.",
+                "FORMATOS/", "Plantillas procesales para redactar escritos.",
+                "Mercantil/", "Normativa mercantil y títulos de crédito.",
+                "Marco-Recomendable/", "Guías doctrinales y criterios recomendados.",
+                "Imprescindibles/", "Documentos críticos de referencia (amparos, sentencias, UNESCO, pueblos indígenas, ética).",
+                "Códigos_Civiles_Penales_Procedimientos/", "Códigos civiles, penales y procesales de los estados de México."
+        );
+
+        StringBuilder contexto = new StringBuilder("### PROTOCOLO DE CONSULTA INTERNA (BUCKET)\n");
+        carpetaContexto.forEach((carpeta, descripcion) ->
+                contexto.append("- ").append(carpeta).append(": ").append(descripcion).append("\n")
+        );
+
+        // Recorrer subcarpetas de Códigos_Civiles_Penales_Procedimientos
+        Page<Blob> blobs = storage.list(
+                "asesoria-legal-bucket",
+                Storage.BlobListOption.prefix("Códigos_Civiles_Penales_Procedimientos/"),
+                Storage.BlobListOption.currentDirectory()
+        );
+
+        contexto.append("   Subcarpetas estatales:\n");
+        for (Blob blob : blobs.iterateAll()) {
+            if (blob.isDirectory()) {
+                String nombreEstado = blob.getName()
+                        .replace("Códigos_Civiles_Penales_Procedimientos/", "")
+                        .replace("/", "")
+                        .replace("_", " ");
+                contexto.append("   - ").append(nombreEstado)
+                        .append(" → códigos civiles, penales y procesales de ")
+                        .append(nombreEstado).append("\n");
+            }
+        }
+
+        return contexto.toString();
+    }
 
     // Método auxiliar para generar el bloque de protocolo
     private String generarContextoBucket() {
