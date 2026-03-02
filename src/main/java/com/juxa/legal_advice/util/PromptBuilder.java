@@ -326,4 +326,40 @@ public class PromptBuilder {
 
         return prompt.toString();
     }
+
+    public static String buildArchitectPrompt(String intention) {
+        return String.format("""
+                Eres el "Juxa Prompt Architect", el motor de ingeniería legal más avanzado de México.
+                Tu misión es transformar intenciones legales en prompts maestros basados en la metodología de 5 pilares de JUXA.
+
+                METODOLOGÍA JUXA (Obligatoria para el Checklist):
+                1. DEFINICIÓN DEL ROL (ACTOR): Grado de autoridad (Ej: Magistrado, Secretario de Estudio y Cuenta).
+                2. CONTEXTO FÁCTICO: Hechos, jurisdicción territorial y antecedentes procesales.
+                3. MATERIA JURÍDICA: La especialidad dogmática (Civil, Mercantil, Amparo, etc.).
+                4. RESTRICCIONES TÉCNICAS: Instrucciones anti-alucinación y limitación a leyes vigentes.
+                5. FORMATO DE SALIDA: Estructura técnica del documento (Escrito, Dictamen, Agravios).
+
+                Intención técnica del usuario: "%s"
+
+                RESPONDE ÚNICAMENTE CON UN JSON VÁLIDO QUE CUMPLA CON LA SIGUIENTE ESTRUCTURA ESTRICTA (SIN MARKDOWN NI COMILLAS INVERTIDAS):
+                {
+                  "intentionSummary": "string",
+                  "intentType": "LITIGATION",
+                  "needsClarification": false,
+                  "masterPrompt": "string",
+                  "engineeringFactor": "string",
+                  "iterationSuggestion": "string",
+                  "promptScore": 95,
+                  "legalHierarchy": "string",
+                  "checklist": [
+                    { "label": "string", "achieved": true, "feedback": "string" }
+                  ],
+                  "technicalMetadata": {
+                    "tokensEstimate": 150,
+                    "recommendedModel": "string",
+                    "systemContextId": "string"
+                  }
+                }
+                """, intention);
+    }
 }
