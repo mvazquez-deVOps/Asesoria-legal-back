@@ -103,6 +103,22 @@ public class AiController {
         }
     }
 
+    @PostMapping("/architect")
+    public ResponseEntity<Map<String, Object>> generateArchitectPrompt(@RequestBody Map<String, String> payload) {
+        try {
+            String intention = payload.get("intention");
+            if (intention == null || intention.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "La intención no puede estar vacía"));
+            }
+
+            // Llamamos al servicio que acabamos de crear en GeminiService
+            Map<String, Object> response = geminiService.processArchitectIntention(intention);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("--- [ERROR CONTROLLER ARCHITECT] --- " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
 
     // Método auxiliar para generar el bloque de protocolo
     private String generarContextoBucket() {

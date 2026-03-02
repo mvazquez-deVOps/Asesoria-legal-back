@@ -444,4 +444,38 @@ public class GeminiService {
         fallback.put("downloadPdf", false);
         return fallback;
     }
+
+    public Map<String, Object> processArchitectIntention(String intention) {
+        String prompt = PromptBuilder.buildArchitectPrompt(intention);
+        String fullResponse = geminiClient.callGemini(prompt);
+
+        try {
+            // 1. Extraer el texto de la respuesta de Gemini
+            JsonNode root = objectMapper.readTree(fullResponse);
+            String rawText = root.path("candidates").get(0)
+                    .path("content").path("parts")
+                    .get(0).path("text").asText();
+
+            // 2. Limpiar posibles bloques de markdown ```json ... ```
+            String cleanJson = rawText.trim();
+            if (cleanJson.startsWith("```json")) {
+                cleanJson = cleanJson.substring(7);
+            }
+            if (cleanJson.endsWith("```")) {
+                cleanJson = cleanJson.substring(0, cleanJson.length() - 3);
+            }
+            cleanJson = cleanJson.trim();
+
+            // 3. Convertir el String limpio a un Map para que el controlador lo devuelva
+            return objectMapper.readValue(cleanJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+
+        } catch (Exception e) {
+            System.err.println("--- [ERROR PROMPT ARCHITECT] ---: " + e.getMessage());
+            return Map.of(
+                    "error", true,
+                    "masterPrompt", "Hubo un error al generar la arquitectura del prompt. Intenta de nuevo."
+            );
+        }
+    }
 }
