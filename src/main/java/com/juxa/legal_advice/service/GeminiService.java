@@ -30,16 +30,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
+import reactor.core.publisher.Flux;
 
 // 4. UTILIDADES DE JAVA (Se eliminó java.awt.* para evitar choques)
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import javax.imageio.ImageIO;
+import javax.swing.text.AbstractDocument;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import org.springframework.web.reactive.function.client.WebClient; // Si usas WebClient
+import reactor.core.publisher.Flux;
+import org.springframework.http.MediaType;
+// Borra: import javax.swing.text.AbstractDocument; <--- ESTO DA ERROR
 
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 
@@ -450,13 +456,11 @@ public class GeminiService {
         String fullResponse = geminiClient.callGemini(prompt);
 
         try {
-            // 1. Extraer el texto de la respuesta de Gemini
             JsonNode root = objectMapper.readTree(fullResponse);
             String rawText = root.path("candidates").get(0)
                     .path("content").path("parts")
                     .get(0).path("text").asText();
 
-            // 2. Limpiar posibles bloques de markdown ```json ... ```
             String cleanJson = rawText.trim();
             if (cleanJson.startsWith("```json")) {
                 cleanJson = cleanJson.substring(7);
@@ -466,7 +470,6 @@ public class GeminiService {
             }
             cleanJson = cleanJson.trim();
 
-            // 3. Convertir el String limpio a un Map para que el controlador lo devuelva
             return objectMapper.readValue(cleanJson,
                     new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
 
@@ -476,6 +479,34 @@ public class GeminiService {
                     "error", true,
                     "masterPrompt", "Hubo un error al generar la arquitectura del prompt. Intenta de nuevo."
             );
+        }
+    } // <--- AQUÍ CIERRA EL MÉTODO ARCHITECT
+
+    // AHORA EL MÉTODO STREAM ESTÁ FUERA Y ES INDEPENDIENTE
+    public Flux<String> streamChatResponse(String message, MultipartFile file, String userDataJson) {
+        try {
+            // 1. Extraer texto si hay archivo
+            String contextoArchivo = (file != null && !file.isEmpty()) ? extractTextFromFile(file) : "";
+
+            // 2. Obtener reglas y contexto legal
+            String reglasJuxa = getReglasJuxa();
+            String contextoLegal = vertexSearchService.searchLegalKnowledge(message);
+
+            // 3. Construir el prompt
+            String prompt = PromptBuilder.buildInteractiveChatPrompt(
+                    reglasJuxa,
+                    contextoArchivo,
+                    contextoLegal,
+                    "Usuario Juxa",
+                    "[]",
+                    message
+            );
+
+            // 4. Llamar al cliente
+            return geminiClient.streamGemini(prompt);
+
+        } catch (Exception e) {
+            return Flux.just("Error al iniciar el flujo de respuesta: " + e.getMessage());
         }
     }
 }

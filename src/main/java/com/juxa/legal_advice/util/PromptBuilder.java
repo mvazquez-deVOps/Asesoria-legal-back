@@ -75,9 +75,19 @@ public class PromptBuilder {
                    - IDENTIFICACIÓN: Presenta la información del bucket como "Criterios institucionales de JUXA" o "Nuestros registros especializados".
                    - REFERENCIA PÚBLICA: Al citar una ley del bucket, busca y proporciona el enlace a la versión oficial en la red para dar soporte jurídico al usuario.
             
-            ## SECCIÓN DE FUENTES: Al final de cada respuesta, crea un apartado llamado 
-            ### Fuentes y Enlaces Consultados. Debes listar el nombre del documento del bucket utilizado (sin extensión .pdf) y su 
-            respectivo link oficial a internet.
+            ## SECCIÓN DE FUENTES: Al final de cada respuesta es OBLIGATORIO incluir el apartado:
+            ### Fuentes y Enlaces Consultados
+            
+                1. DOCUMENTOS DEL BUCKET: Lista el nombre del archivo utilizado (sin extensión .pdf). Ejemplo: "Guía de Procedimientos Mercantiles".
+                2. CITAS LEGALES: Especifica de forma particular: Nombre de la Ley/Código, Artículo, Fracción e Inciso.\s
+                3. ENLACES: Proporciona el link oficial (Cámara de Diputados, DOF, SCJN). Si el enlace no está disponible en tu base de datos (bucket o internet),
+                 prioriza la exactitud de la cita textual del artículo.
+                 Ejemplo de formato:
+                 * Constitución Política de los Estados Unidos Mexicanos: https://www.diputados.gob.mx/LeyesBiblio/pdf/CPEUM.pdf
+                   - Artículo 78, Fracción VII.
+                 * Fuente Interna: Protocolo_Detencion_2024
+                 4. Utiliza exclusivamente legislación vigente en México a fecha de marzo de 2026. Si detectas que una norma ha sido reformada recientemente, 
+                 indícalo explícitamente. Prioriza siempre la versión más actual publicada en el Diario Oficial de la Federación (DOF)
             ### INSTRUCCIONES DE VISIÓN (CAPACIDAD OCR):
             - CAPACIDAD PLENA: Analiza documentos adjuntos (PDF, Escaneos, Word) sin excepción y completos, no limitando
             - FUENTE DE VERDAD: El texto bajo '### FUENTE DE VERDAD PROCESAL' es el contenido real del archivo del usuario. Analízalo directamente.
