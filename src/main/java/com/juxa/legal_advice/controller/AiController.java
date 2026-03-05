@@ -109,7 +109,10 @@ public class AiController {
             payload.put("message", currentMessage);
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
-            payload.put("contextoArchivo", !textoOcr.isEmpty() ? textoOcr : contextoBucket);
+            String contextoTotal = "HOJA DE RUTA: " + aiBucketService.readTextFile("Hoja_deRita.csv") + "\n" +
+                    "ESTRUCTURA BUCKET: " + generarContextoBucket() + "\n" +
+                    "OCR ARCHIVO: " + textoOcr;
+            payload.put("contextoArchivo", contextoTotal);
 
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
             return ResponseEntity.ok(aiResponse);
