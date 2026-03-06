@@ -9,26 +9,18 @@ import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.service.AiBucketService;
 import com.juxa.legal_advice.service.GeminiService;
-import io.jsonwebtoken.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.publisher.Flux;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -44,14 +36,12 @@ public class AiController {
     @Autowired(required = false)
     private Storage storage;
 
-    @org.springframework.beans.factory.annotation.Value("${google.client.id:}")
-    private String googleClientId;
-
     @PostMapping("/generate-initial-diagnosis")
     public ResponseEntity<Map<String, Object>> startDiagnosis(@RequestBody UserDataDTO userData) {
         Map<String, Object> response = geminiService.generateInitialChatResponse(userData);
         return ResponseEntity.ok(response);
     }
+
     @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> chat(
             @RequestParam("message") String currentMessage,
@@ -89,35 +79,53 @@ public class AiController {
                 if (user.getDailyMessageCount() >= 10) {
                     return ResponseEntity.status(429).body(Map.of(
                             "error", "Límite diario alcanzado",
-                            "message", "Has agotado tus 10 interacciones gratuitas de hoy. ¡Pásate a Premium!"
+                            "message", "Has agotado tus 10 interacciones gratuitas de hoy."
                     ));
                 }
                 user.setDailyMessageCount(user.getDailyMessageCount() + 1);
                 userRepository.save(user);
             }
 
-            String textoOcr = "";
+            // 🌟 LECTURA NATIVA (SIN OCR PARA PDFS)
+            String fileBase64 = null;
+            String mimeType = null;
+            String textoOcr = ""; // Solo se usará si suben un archivo Word (.docx)
+
             if (file != null && !file.isEmpty()) {
-                textoOcr = geminiService.extractTextFromFile(file);
+                String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+                if (filename.endsWith(".pdf") || filename.endsWith(".png") || filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+                    fileBase64 = java.util.Base64.getEncoder().encodeToString(file.getBytes());
+                    mimeType = file.getContentType();
+                    if (mimeType == null || mimeType.contains("octet-stream")) {
+                        mimeType = filename.endsWith(".pdf") ? "application/pdf" : "image/jpeg";
+                    }
+                } else {
+                    // Si es Word, seguimos usando el extractor de texto normal
+                    textoOcr = geminiService.extractTextFromFile(file);
+                }
             }
 
+            // Extraemos las reglas de JUXA de forma separada
             String directrices = aiBucketService.readTextFile("Hoja_deRita.csv");
             String contextoCarpetas = generarContextoBucket();
-            String contextoBucket = directrices + "\n \n" + contextoCarpetas;
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("message", currentMessage);
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
-            String contextoTotal = "HOJA DE RUTA: " + aiBucketService.readTextFile("Hoja_deRita.csv") + "\n" +
-                    "ESTRUCTURA BUCKET: " + generarContextoBucket() + "\n" +
-                    "OCR ARCHIVO: " + textoOcr;
-            payload.put("contextoArchivo", contextoTotal);
+
+            // Pasamos las variables completamente separadas para que la IA no se confunda
+            payload.put("hojaRuta", directrices);
+            payload.put("estructuraCarpetas", contextoCarpetas);
+            payload.put("textoOcr", textoOcr);
+            payload.put("fileBase64", fileBase64);
+            payload.put("mimeType", mimeType);
 
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
             return ResponseEntity.ok(aiResponse);
 
         } catch (Exception e) {
+            System.err.println("--- [ERROR CONTROLLER] --- " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
@@ -126,9 +134,6 @@ public class AiController {
     public ResponseEntity<Map<String, Object>> generateArchitectPrompt(@RequestBody Map<String, String> payload) {
         try {
             String intention = payload.get("intention");
-            if (intention == null || intention.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "La intención no puede estar vacía"));
-            }
             Map<String, Object> response = geminiService.processArchitectIntention(intention);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -138,52 +143,27 @@ public class AiController {
 
     private String generarContextoBucket() {
         Map<String, String> carpetaContexto = Map.of(
-                "Camara_de_Diputados/", "Acuerdos legislativos y convocatorias solemnes.",
-                "FORMATOS/", "Plantillas procesales para redactar escritos.",
-                "Mercantil/", "Normativa mercantil y títulos de crédito.",
-                "Marco-Recomendable/", "Guías doctrinales y criterios recomendados.",
-                "Imprescindibles/", "Documentos críticos de referencia (amparos, sentencias, UNESCO, pueblos indígenas, ética).",
-                "Códigos_Civiles_Penales_Procedimientos/", "Códigos civiles, penales y procesales de los estados de México."
+                "Camara_de_Diputados/", "Acuerdos legislativos.",
+                "FORMATOS/", "Plantillas procesales.",
+                "Mercantil/", "Normativa mercantil.",
+                "Marco-Recomendable/", "Guías doctrinales.",
+                "Imprescindibles/", "Documentos críticos.",
+                "Códigos_Civiles_Penales_Procedimientos/", "Códigos estatales."
         );
 
         StringBuilder contexto = new StringBuilder("### PROTOCOLO DE CONSULTA INTERNA (BUCKET)\n");
-        carpetaContexto.forEach((carpeta, descripcion) ->
-                contexto.append("- ").append(carpeta).append(": ").append(descripcion).append("\n")
-        );
+        carpetaContexto.forEach((carpeta, desc) -> contexto.append("- ").append(carpeta).append(": ").append(desc).append("\n"));
 
         try {
-            Page<Blob> blobs = storage.list(
-                    "asesoria-legal-bucket",
-                    Storage.BlobListOption.prefix("Códigos_Civiles_Penales_Procedimientos/"),
-                    Storage.BlobListOption.currentDirectory()
-            );
-
+            Page<Blob> blobs = storage.list("asesoria-legal-bucket", Storage.BlobListOption.prefix("Códigos_Civiles_Penales_Procedimientos/"), Storage.BlobListOption.currentDirectory());
             contexto.append("   Subcarpetas estatales:\n");
             for (Blob blob : blobs.iterateAll()) {
                 if (blob.isDirectory()) {
-                    String nombreEstado = blob.getName()
-                            .replace("Códigos_Civiles_Penales_Procedimientos/", "")
-                            .replace("/", "")
-                            .replace("_", " ");
-                    contexto.append("   - ").append(nombreEstado)
-                            .append(" → códigos civiles, penales y procesales de ")
-                            .append(nombreEstado).append("\n");
+                    String nombreEstado = blob.getName().replace("Códigos_Civiles_Penales_Procedimientos/", "").replace("/", "").replace("_", " ");
+                    contexto.append("   - ").append(nombreEstado).append("\n");
                 }
             }
-        } catch (Exception e) {
-            contexto.append(" (Error listando subcarpetas: ").append(e.getMessage()).append(")");
-        }
-
+        } catch (Exception e) {}
         return contexto.toString();
-    }
-    // En AiController.java
-    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chatStream(
-            @RequestParam("message") String message,
-            @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam("userData") String userDataJson) {
-
-        // Aquí invocas a GeminiService en modo stream
-        return geminiService.streamChatResponse(message, file, userDataJson);
     }
 }

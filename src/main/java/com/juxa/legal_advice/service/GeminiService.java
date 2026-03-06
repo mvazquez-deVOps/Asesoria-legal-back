@@ -151,7 +151,11 @@ public class GeminiService {
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
         List<Map<String, Object>> history = extractHistory(payload);
 
-        // 2. Extracción del texto del archivo
+        // 🌟 NUEVO: Extraer los datos del archivo nativo (Base64 y tipo de archivo)
+        String fileBase64 = (String) payload.get("fileBase64");
+        String mimeType = (String) payload.get("mimeType");
+
+        // 2. Extracción del texto del archivo (Solo tendrá datos si era un .txt o un .docx)
         String textoExtraido = "";
         if (payload.containsKey("contextoArchivo") && payload.get("contextoArchivo") != null) {
             textoExtraido = ((String) payload.get("contextoArchivo")).trim()
@@ -159,10 +163,7 @@ public class GeminiService {
                     .replace("\n", " ");
         }
 
-        // Seguridad de tokens
-        if (textoExtraido.length() > 5000) {
-            textoExtraido = textoExtraido.substring(0, 5000) + "... [Texto truncado]";
-        }
+        // 🌟 SE ELIMINÓ EL LÍMITE DE 5000 CARACTERES AQUÍ PARA NO CORTAR LA LECTURA
 
         // 3. Tareas asíncronas
         CompletableFuture<String> contextFuture = CompletableFuture.supplyAsync(() ->
@@ -189,10 +190,15 @@ public class GeminiService {
         // Unimos las reglas con el inventario de formatos
         String bloqueInstrucciones = reglasSanitizadas + inventarioFormatos;
 
+        // 🌟 NUEVO: Advertencia para que la IA sepa que le adjuntamos un documento visual
+        String advertenciaArchivoNativo = (fileBase64 != null)
+                ? "\n\n[INSTRUCCIÓN DE SISTEMA: El usuario ha adjuntado un documento nativo. Revísalo visualmente en su totalidad para fundamentar tu respuesta.]"
+                : "";
+
         // 6. Construir Prompt con los 6 argumentos exactos
         String prompt = PromptBuilder.buildInteractiveChatPrompt(
                 bloqueInstrucciones, // Arg 1: Instrucciones sanitizadas
-                textoExtraido,       // Arg 2: Contenido del archivo (Fuente de verdad)
+                textoExtraido + advertenciaArchivoNativo, // Arg 2: Contenido del archivo (Fuente de verdad)
                 contextoLegal,       // Arg 3: Soporte normativo
                 contextoUsuario,     // Arg 4: Perfil cliente
                 history.isEmpty() ? "Inicio" : history.toString(), // Arg 5: Historial
@@ -200,8 +206,8 @@ public class GeminiService {
         );
 
         // 7. Ejecución y Procesamiento Estructurado
-        // Aquí es donde entra tu método extractStructuredResponse con la lista negra
-        String fullResponse = geminiClient.callGemini(prompt);
+        // 🌟 CAMBIO FINAL: Le pasamos el prompt, y además el PDF en Base64 para que lo lea nativamente
+        String fullResponse = geminiClient.callGemini(prompt, fileBase64, mimeType);
         Map<String, Object> result = extractStructuredResponse(fullResponse);
 
         injectReminderLogic(result, history);

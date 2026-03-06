@@ -7,6 +7,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,18 +31,37 @@ public class GeminiClient {
     }
 
     /**
-     * MODO NORMAL: Devuelve JSON completo.
-     * Se usa para Diagnóstico, Arquitecto y casos donde necesitas el JSON cerrado.
+     * SOBRECARGA: Mantiene vivos los procesos que solo envían texto (como el Resumen o Arquitecto)
      */
     public String callGemini(String prompt) {
+        return callGemini(prompt, null, null);
+    }
+
+    /**
+     * MODO NORMAL CON SOPORTE MULTIMODAL (Para PDFs nativos)
+     */
+    public String callGemini(String prompt, String fileBase64, String mimeType) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-goog-api-key", apiKey);
 
+        List<Map<String, Object>> parts = new ArrayList<>();
+
+        // 🌟 GOOGLE BEST PRACTICE: El documento (PDF/Imagen) va ANTES que el texto
+        if (fileBase64 != null && !fileBase64.isEmpty() && mimeType != null) {
+            parts.add(Map.of("inlineData", Map.of(
+                    "mimeType", mimeType,
+                    "data", fileBase64
+            )));
+        }
+
+        // Luego agregamos el prompt
+        parts.add(Map.of("text", prompt));
+
         // Aquí SÍ forzamos JSON para que no se rompa tu lógica de objetos
         Map<String, Object> bodyMap = Map.of(
                 "contents", List.of(
-                        Map.of("parts", List.of(Map.of("text", prompt)))
+                        Map.of("parts", parts)
                 ),
                 "generationConfig", Map.of("responseMimeType", "application/json")
         );
@@ -57,14 +77,32 @@ public class GeminiClient {
     }
 
     /**
-     * MODO STREAM: Devuelve texto fluido (chunks).
-     * Se usa para el chat interactivo para simular la escritura.
+     * SOBRECARGA: Para el chat tipo stream original
      */
     public Flux<String> streamGemini(String prompt) {
+        return streamGemini(prompt, null, null);
+    }
+
+    /**
+     * MODO STREAM CON SOPORTE MULTIMODAL
+     */
+    public Flux<String> streamGemini(String prompt, String fileBase64, String mimeType) {
+        List<Map<String, Object>> parts = new ArrayList<>();
+
+        // 🌟 Igual que arriba, el documento va antes
+        if (fileBase64 != null && !fileBase64.isEmpty() && mimeType != null) {
+            parts.add(Map.of("inlineData", Map.of(
+                    "mimeType", mimeType,
+                    "data", fileBase64
+            )));
+        }
+
+        parts.add(Map.of("text", prompt));
+
         // En streaming NO forzamos JSON para evitar que los caracteres { } rompan el flujo
         Map<String, Object> bodyMap = Map.of(
                 "contents", List.of(
-                        Map.of("parts", List.of(Map.of("text", prompt)))
+                        Map.of("parts", parts)
                 )
         );
 
