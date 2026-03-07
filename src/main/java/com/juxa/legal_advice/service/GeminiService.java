@@ -491,7 +491,7 @@ public class GeminiService {
     // AHORA EL MÉTODO STREAM ESTÁ FUERA Y ES INDEPENDIENTE
     public Flux<String> streamChatResponse(String message, MultipartFile file, String userDataJson) {
         try {
-            // 1. Extraer texto si hay archivo
+            System.out.println("### JUXA-CORE: Procesando mensaje -> " + message);
             String contextoArchivo = (file != null && !file.isEmpty()) ? extractTextFromFile(file) : "";
 
             // 2. Obtener reglas y contexto legal
