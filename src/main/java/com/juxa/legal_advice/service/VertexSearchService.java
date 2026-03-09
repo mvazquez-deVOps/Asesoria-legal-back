@@ -1,12 +1,12 @@
 package com.juxa.legal_advice.service;
 
+import com.google.cloud.discoveryengine.v1beta.SearchServiceSettings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import com.google.cloud.discoveryengine.v1beta.SearchServiceClient;
 import com.google.cloud.discoveryengine.v1beta.SearchRequest;
-
 
 @Service
 public class VertexSearchService {
@@ -16,55 +16,66 @@ public class VertexSearchService {
     @Value("${gcp.data-store-id}") private String dataStoreId;
 
     public String searchLegalKnowledge(String query) {
-        try (SearchServiceClient client = SearchServiceClient.create()) {
-            SearchRequest request = SearchRequest.newBuilder()
-                    .setServingConfig(String.format("projects/%s/locations/%s/dataStores/%s/servingConfigs/default_search",
-                            projectId, location, dataStoreId))
-                    .setQuery(query)
-                    .setPageSize(3) // Solo traemos los 3 fragmentos más relevantes
+        System.out.println("--- [DEBUG JUXA] Iniciando búsqueda en Vertex Search AI ---");
+        System.out.println("--- [DEBUG JUXA] Query: " + query);
+
+        try {
+            // 1. Definimos la configuración regional
+            SearchServiceSettings settings = SearchServiceSettings.newBuilder()
+                    .setEndpoint("us-discoveryengine.googleapis.com:443")
                     .build();
 
-            SearchServiceClient.SearchPagedResponse response = client.search(request);
+            // 2. PASAMOS LOS SETTINGS AL CLIENTE (Paso crucial para evitar el error INVALID_ARGUMENT)
+            try (SearchServiceClient client = SearchServiceClient.create(settings)) {
 
-            return StreamSupport.stream(response.iterateAll().spliterator(), false)
-                    .map(result -> {
-                        // Accedemos al objeto Document de Discovery Engine
-                        com.google.cloud.discoveryengine.v1beta.Document doc = result.getDocument();
+                SearchRequest request = SearchRequest.newBuilder()
+                        .setServingConfig(String.format("projects/%s/locations/%s/dataStores/%s/servingConfigs/default_search",
+                                projectId, location, dataStoreId))
+                        .setQuery(query)
+                        .setPageSize(3)
+                        .build();
 
-                        // 1. Obtener la URI o Link de los metadatos estructurados
-                        // Discovery Engine guarda la URL original en 'content' o 'derivedStructData'
-                        String sourceLink = "";
+                SearchServiceClient.SearchPagedResponse response = client.search(request);
 
-                        // Intentamos obtener la URI desde los datos derivados (donde Vertex guarda el link de GCS)
-                        var derivedFields = doc.getDerivedStructData().getFieldsMap();
-                        if (derivedFields.containsKey("link")) {
-                            sourceLink = derivedFields.get("link").getStringValue();
-                        } else if (doc.hasContent()) {
-                            // Si no está en link, revisamos el campo content (URI de GCS o Web)
-                            sourceLink = doc.getContent().getUri();
-                        }
+                if (!response.iterateAll().iterator().hasNext()) {
+                    System.out.println("--- [DEBUG JUXA] Vertex Search NO encontró resultados para esta consulta.");
+                    return "No se encontraron fundamentos técnicos";
+                }
 
-                        // Si aún es vacío, usamos el nombre único del recurso en GCP como identificador
-                        if (sourceLink == null || sourceLink.isEmpty()) {
-                            sourceLink = doc.getName();
-                        }
+                System.out.println("--- [DEBUG JUXA] Resultados encontrados exitosamente.");
 
-                        // 2. Extraer el fragmento de texto (Snippet)
-                        String snippet = "";
-                        if (derivedFields.containsKey("snippets")) {
-                            snippet = derivedFields.get("snippets").getListValue().getValues(0)
-                                    .getStructValue().getFieldsMap().get("snippet").getStringValue();
-                        }
+                return StreamSupport.stream(response.iterateAll().spliterator(), false)
+                        .map(result -> {
+                            com.google.cloud.discoveryengine.v1beta.Document doc = result.getDocument();
+                            String sourceLink = "";
+                            var derivedFields = doc.getDerivedStructData().getFieldsMap();
 
-                        // Formateamos para que Gemini identifique claramente la fuente y el texto
-                        return String.format("[Fuente Documental: %s]\n%s", sourceLink, snippet);
-                    })
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.joining("\n\n"));
+                            if (derivedFields.containsKey("link")) {
+                                sourceLink = derivedFields.get("link").getStringValue();
+                            } else if (doc.hasContent()) {
+                                sourceLink = doc.getContent().getUri();
+                            }
+
+                            if (sourceLink == null || sourceLink.isEmpty()) {
+                                sourceLink = doc.getName();
+                            }
+
+                            String snippet = "";
+                            if (derivedFields.containsKey("snippets")) {
+                                snippet = derivedFields.get("snippets").getListValue().getValues(0)
+                                        .getStructValue().getFieldsMap().get("snippet").getStringValue();
+                            }
+
+                            return String.format("### FUENTE: %s\n### CONTENIDO RECUPERADO: %s", sourceLink, snippet);
+                        })
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.joining("\n\n---\n\n"));
+            }
         } catch (Exception e) {
-            // Es vital capturar el error para que el asistente pueda seguir respondiendo con su conocimiento base
-            System.err.println("Error en búsqueda semántica: " + e.getMessage());
-            return "No se encontraron fundamentos técnicos externos, procede con tu base de datos interna.";
+            System.err.println("--- [ERROR CRÍTICO VERTEX] ---");
+            System.err.println("Mensaje: " + e.getMessage());
+            e.printStackTrace();
+            return "No se encontraron fundamentos técnicos";
         }
     }
 }

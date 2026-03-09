@@ -99,10 +99,16 @@ public class GeminiClient {
 
         parts.add(Map.of("text", prompt));
 
-        // En streaming NO forzamos JSON para evitar que los caracteres { } rompan el flujo
+
         Map<String, Object> bodyMap = Map.of(
                 "contents", List.of(
                         Map.of("parts", parts)
+                ),
+                "generationConfig", Map.of(
+                        "responseMimeType", "application/json",
+                        "temperature", 0.0,
+                        "topP", 0.8,
+                        "topK", 40
                 )
         );
 
