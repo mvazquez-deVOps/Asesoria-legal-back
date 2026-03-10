@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class GeminiClient {
+public class    GeminiClient {
 
     private final RestTemplate restTemplate;
     private final WebClient webClient;
@@ -47,7 +47,7 @@ public class GeminiClient {
 
         List<Map<String, Object>> parts = new ArrayList<>();
 
-        // 🌟 GOOGLE BEST PRACTICE: El documento (PDF/Imagen) va ANTES que el texto
+        //      GOOGLE BEST PRACTICE: El documento (PDF/Imagen) va ANTES que el texto
         if (fileBase64 != null && !fileBase64.isEmpty() && mimeType != null) {
             parts.add(Map.of("inlineData", Map.of(
                     "mimeType", mimeType,
@@ -73,9 +73,9 @@ public class GeminiClient {
         } catch (Exception e) {
             logger.error("Error en callGemini: {}", e.getMessage());
             throw new RuntimeException("Error en la comunicación con el motor de IA", e);
+
         }
     }
-
     /**
      * SOBRECARGA: Para el chat tipo stream original
      */
