@@ -306,9 +306,10 @@ public class PromptBuilder {
 
         return prompt.toString();
     }
-
+    //ARQUITECTO DE PROMPTS
     public static String buildArchitectPrompt(String intention) {
         return String.format("""
+                
                 Eres el "Juxa Prompt Architect", el motor de ingeniería legal más avanzado de México.
                 Tu misión es transformar la instrucción (intención) del abogado en un "Prompt Maestro" optimizado, basándote en la metodología de 5 pilares de JUXA.
 
