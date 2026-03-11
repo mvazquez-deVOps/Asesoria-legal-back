@@ -1,6 +1,6 @@
 package com.juxa.legal_advice.service;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
+import  com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -67,11 +67,9 @@ public class GeminiService {
     private String cachedReglasJuxa = null;
 
 
-
-
     public Map<String, Object> generateInitialChatResponse(UserDataDTO userData) {
         String contextoPersona = "MORAL".equalsIgnoreCase(userData.getUserType()) ?
-             "el representante de la empresa" : "el ciudadano";
+                "el representante de la empresa" : "el ciudadano";
 
         String prompt = PromptBuilder.buildInitialDiagnosisPrompt(
                 userData, contextoPersona);
@@ -98,7 +96,7 @@ public class GeminiService {
 
     private String getReglasJuxa() {
 
-            return (cachedReglasJuxa != null) ? cachedReglasJuxa : "Reglas generales de asesoría legal JUXA.";
+        return (cachedReglasJuxa != null) ? cachedReglasJuxa : "Reglas generales de asesoría legal JUXA.";
     }
 
     /* Esta versión se utilizaba cuando se requería buscar archivo por archivo
@@ -151,7 +149,7 @@ public class GeminiService {
         UserDataDTO userData = objectMapper.convertValue(payload.get("userData"), UserDataDTO.class);
         List<Map<String, Object>> history = extractHistory(payload);
 
-        // 🌟 NUEVO: Extraer los datos del archivo nativo (Base64 y tipo de archivo)
+        //  NUEVO: Extraer los datos del archivo nativo (Base64 y tipo de archivo)
         String fileBase64 = (String) payload.get("fileBase64");
         String mimeType = (String) payload.get("mimeType");
 
@@ -163,7 +161,7 @@ public class GeminiService {
                     .replace("\n", " ");
         }
 
-        // 🌟 SE ELIMINÓ EL LÍMITE DE 5000 CARACTERES AQUÍ PARA NO CORTAR LA LECTURA
+        //  SE ELIMINÓ EL LÍMITE DE 5000 CARACTERES AQUÍ PARA NO CORTAR LA LECTURA
 
         // 3. Tareas asíncronas
         CompletableFuture<String> contextFuture = CompletableFuture.supplyAsync(() ->
@@ -224,16 +222,17 @@ public class GeminiService {
             result.put("reminder", "💡 JuxIA: ¿Consideras que ya me diste suficiente información?");
         }
     }
+
     public String generateLegalSummary(DiagnosisEntity entity) {
         String hechos = (entity.getDescription() != null) ? entity.getDescription() : "Caso por chat";
         String contexto = (entity.getHistory() != null) ? entity.getHistory() : "Sin historial";
-         // Obtener las reglas y prompts asignados
+        // Obtener las reglas y prompts asignados
         String reglasJuxa = getReglasJuxa();
 
         //Busqueda del agente
 
 
-        String prompt = String.format( """
+        String prompt = String.format("""
                 Actúa como un abogado senior de JUXA. Genera un 'PLAN DE ACCIÓN JURÍDICA' profesional.
                 REGLAS DE OPERACION: %s.
                 HECHOS: %s. HISTORIAL: %s.
@@ -278,7 +277,8 @@ public class GeminiService {
 
             // 3. Conversión a Map
             Map<String, Object> result = objectMapper.readValue(cleanJson,
-                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+                    });
 
             // 4. Normalización para Paws
             if (!result.containsKey("text") && result.containsKey("diagnosis")) {
@@ -286,7 +286,7 @@ public class GeminiService {
             }
 
             // 5. Garantía de campos
-            if (!result.containsKey("suggestions") || ((List<?>)result.get("suggestions")).isEmpty()) {
+            if (!result.containsKey("suggestions") || ((List<?>) result.get("suggestions")).isEmpty()) {
                 result.put("suggestions", new java.util.ArrayList<>(List.of(
                         Map.of(
                                 "titulo", "Análisis en proceso",
@@ -313,7 +313,7 @@ public class GeminiService {
             }
 
             // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
-            if (!result.containsKey("suggestedPrompts") || ((List<?>)result.get("suggestedPrompts")).isEmpty()) {
+            if (!result.containsKey("suggestedPrompts") || ((List<?>) result.get("suggestedPrompts")).isEmpty()) {
                 result.put("suggestedPrompts", new java.util.ArrayList<>(List.of(
                         "¿Cuáles son los siguientes pasos legales?",
                         "¿Qué pruebas necesito reunir?",
@@ -331,6 +331,7 @@ public class GeminiService {
         }
     }
 
+
     // Extractor simple para casos como generateLegalSummary
     private String extractTextFromResponse(String response) {
         try {
@@ -346,6 +347,7 @@ public class GeminiService {
             return "Lo siento, hubo un error procesando tu consulta.";
         }
     }
+
     /**
      * Extrae el mensaje actual del payload de forma segura,
      * verificando múltiples llaves posibles.
@@ -356,8 +358,8 @@ public class GeminiService {
             message = (String) payload.get("message");
         }
         return (message != null && !message.trim().isEmpty())
-           ? message.trim()
-           : "Continuar con el análisis legal basado en los hechos anteriores.";
+                ? message.trim()
+                : "Continuar con el análisis legal basado en los hechos anteriores.";
     }
 
 
@@ -383,7 +385,7 @@ public class GeminiService {
                     PDFRenderer renderer = new PDFRenderer(document);
 
                     // Procesamos las primeras 3 páginas para no saturar el tiempo de respuesta
-                    int maxPages = Math.min(document.getNumberOfPages(), 3);
+                    int maxPages = Math.min(document.getNumberOfPages(), 50);
 
                     try (ImageAnnotatorClient vision = ImageAnnotatorClient.create()) {
                         for (int i = 0; i < maxPages; i++) {
@@ -477,42 +479,17 @@ public class GeminiService {
             cleanJson = cleanJson.trim();
 
             return objectMapper.readValue(cleanJson,
-                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+                    });
 
         } catch (Exception e) {
             System.err.println("--- [ERROR PROMPT ARCHITECT] ---: " + e.getMessage());
-            return Map.of(
-                    "error", true,
-                    "masterPrompt", "Hubo un error al generar la arquitectura del prompt. Intenta de nuevo."
-            );
-        }
-    } // <--- AQUÍ CIERRA EL MÉTODO ARCHITECT
 
-    // AHORA EL MÉTODO STREAM ESTÁ FUERA Y ES INDEPENDIENTE
-    public Flux<String> streamChatResponse(String message, MultipartFile file, String userDataJson) {
-        try {
-            System.out.println("### JUXA-CORE: Procesando mensaje -> " + message);
-            String contextoArchivo = (file != null && !file.isEmpty()) ? extractTextFromFile(file) : "";
-
-            // 2. Obtener reglas y contexto legal
-            String reglasJuxa = getReglasJuxa();
-            String contextoLegal = vertexSearchService.searchLegalKnowledge(message);
-
-            // 3. Construir el prompt
-            String prompt = PromptBuilder.buildInteractiveChatPrompt(
-                    reglasJuxa,
-                    contextoArchivo,
-                    contextoLegal,
-                    "Usuario Juxa",
-                    "[]",
-                    message
-            );
-
-            // 4. Llamar al cliente
-            return geminiClient.streamGemini(prompt);
-
-        } catch (Exception e) {
-            return Flux.just("Error al iniciar el flujo de respuesta: " + e.getMessage());
+            Map<String, Object> errorMap = new HashMap<>();
+            errorMap.put("error", true);
+            errorMap.put("masterPrompt", "Hubo un error al generar la arquitectura del prompt. Verifica la cuota o el formato.");
+            return errorMap;
         }
     }
 }
+

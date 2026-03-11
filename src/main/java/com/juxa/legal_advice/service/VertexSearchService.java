@@ -1,12 +1,20 @@
 package com.juxa.legal_advice.service;
 
-import com.google.cloud.discoveryengine.v1beta.SearchServiceSettings;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import com.google.cloud.discoveryengine.v1beta.SearchServiceClient;
 import com.google.cloud.discoveryengine.v1beta.SearchRequest;
+import com.google.cloud.discoveryengine.v1beta.SearchResponse;
+import com.google.cloud.discoveryengine.v1beta.SearchServiceSettings;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.apache.commons.lang3.stream.LangCollectors.collect;
 
 @Service
 public class VertexSearchService {
@@ -15,67 +23,102 @@ public class VertexSearchService {
     @Value("${gcp.location}") private String location;
     @Value("${gcp.data-store-id}") private String dataStoreId;
 
-    public String searchLegalKnowledge(String query) {
-        System.out.println("--- [DEBUG JUXA] Iniciando búsqueda en Vertex Search AI ---");
-        System.out.println("--- [DEBUG JUXA] Query: " + query);
+    private SearchServiceClient client;
+    private final Map<String, String> cacheConsultas = new ConcurrentHashMap<>();
 
+    @PostConstruct
+    public void init() {
         try {
-            // 1. Definimos la configuración regional
             SearchServiceSettings settings = SearchServiceSettings.newBuilder()
                     .setEndpoint("us-discoveryengine.googleapis.com:443")
                     .build();
-
-            // 2. PASAMOS LOS SETTINGS AL CLIENTE (Paso crucial para evitar el error INVALID_ARGUMENT)
-            try (SearchServiceClient client = SearchServiceClient.create(settings)) {
-
-                SearchRequest request = SearchRequest.newBuilder()
-                        .setServingConfig(String.format("projects/%s/locations/%s/dataStores/%s/servingConfigs/default_search",
-                                projectId, location, dataStoreId))
-                        .setQuery(query)
-                        .setPageSize(3)
-                        .build();
-
-                SearchServiceClient.SearchPagedResponse response = client.search(request);
-
-                if (!response.iterateAll().iterator().hasNext()) {
-                    System.out.println("--- [DEBUG JUXA] Vertex Search NO encontró resultados para esta consulta.");
-                    return "No se encontraron fundamentos técnicos";
-                }
-
-                System.out.println("--- [DEBUG JUXA] Resultados encontrados exitosamente.");
-
-                return StreamSupport.stream(response.iterateAll().spliterator(), false)
-                        .map(result -> {
-                            com.google.cloud.discoveryengine.v1beta.Document doc = result.getDocument();
-                            String sourceLink = "";
-                            var derivedFields = doc.getDerivedStructData().getFieldsMap();
-
-                            if (derivedFields.containsKey("link")) {
-                                sourceLink = derivedFields.get("link").getStringValue();
-                            } else if (doc.hasContent()) {
-                                sourceLink = doc.getContent().getUri();
-                            }
-
-                            if (sourceLink == null || sourceLink.isEmpty()) {
-                                sourceLink = doc.getName();
-                            }
-
-                            String snippet = "";
-                            if (derivedFields.containsKey("snippets")) {
-                                snippet = derivedFields.get("snippets").getListValue().getValues(0)
-                                        .getStructValue().getFieldsMap().get("snippet").getStringValue();
-                            }
-
-                            return String.format("### FUENTE: %s\n### CONTENIDO RECUPERADO: %s", sourceLink, snippet);
-                        })
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.joining("\n\n---\n\n"));
-            }
+            this.client = SearchServiceClient.create(settings);
+            System.out.println("--- [SISTEMA] Cliente de Vertex Search inicializado (v1beta) ---");
         } catch (Exception e) {
-            System.err.println("--- [ERROR CRÍTICO VERTEX] ---");
-            System.err.println("Mensaje: " + e.getMessage());
-            e.printStackTrace();
-            return "No se encontraron fundamentos técnicos";
+            System.err.println("--- [ERROR] No se pudo inicializar Vertex Search: " + e.getMessage());
+        }
+    }
+
+    public String searchLegalKnowledge(String query) {
+        String queryKey = query.trim().toLowerCase();
+        if (cacheConsultas.containsKey(queryKey)) {
+            System.out.println("--- [CACHE] Reutilizando resultado para: " + queryKey);
+            return cacheConsultas.get(queryKey);
+        }
+
+        System.out.println("--- [VERTEX] Buscando fundamentos para: " + query);
+
+        try {
+            // Configuramos la petición con Snippets y un tamaño de página de 5
+            SearchRequest request = SearchRequest.newBuilder()
+                    .setServingConfig(String.format(
+                            "projects/%s/locations/%s/dataStores/%s/servingConfigs/default_search",
+                            projectId, location, dataStoreId))
+                    .setQuery(query)
+                    .setPageSize(15)
+                    .setContentSearchSpec(SearchRequest.ContentSearchSpec.newBuilder()
+                            .setSnippetSpec(SearchRequest.ContentSearchSpec.SnippetSpec.newBuilder()
+                                    .setReturnSnippet(true) // Crucial para obtener el texto real
+                                    .build())
+                            .build())
+                    .build();
+
+            // Ejecutamos la búsqueda
+            SearchResponse response = client.search(request).getPage().getResponse();
+
+            if (response.getResultsCount() == 0) {
+                System.out.println("--- [AVISO] Vertex no encontró fragmentos relevantes. ---");
+                return "No se encontraron fundamentos técnicos específicos en la base de datos.";
+            }
+
+            // Procesamos los resultados de la PRIMERA PÁGINA únicamente
+            String contextoLegal = StreamSupport.stream(response.getResultsList().spliterator(), false)
+                    .map(result -> {
+                        var doc = result.getDocument();
+                        var structFields = doc.getStructData().getFieldsMap();
+                        var derivedFields = doc.getDerivedStructData().getFieldsMap();
+
+                        String contenidoFinal = "Texto no disponible";
+
+                        // PRIORIDAD 1: El contenido original del JSON (porque ya vimos que tus archivos tienen la llave 'contenido')
+                        if (structFields.containsKey("contenido")) {
+                            contenidoFinal = structFields.get("contenido").getStringValue();
+                        }
+                        // PRIORIDAD 2: El artículo (para darle contexto a Gemini sobre qué número de artículo es)
+                        String numeroArticulo = "";
+                        if (structFields.containsKey("articulo")) {
+                            numeroArticulo = "Art. " + structFields.get("articulo").getStringValue() + ": ";
+                        }
+
+                        // PRIORIDAD 3: Snippets (como respaldo si lo anterior fallara)
+                        if (contenidoFinal.equals("Texto no disponible") && derivedFields.containsKey("snippets")) {
+                            var values = derivedFields.get("snippets").getListValue().getValuesList();
+                            if (!values.isEmpty()) {
+                                contenidoFinal = values.get(0).getStructValue().getFieldsMap().get("snippet").getStringValue();
+                            }
+                        }
+
+                        System.out.println("--- [ÉXITO] Contenido recuperado de: " + doc.getName());
+                        System.out.println("--- [TEXTO] " + (contenidoFinal.length() > 100 ? contenidoFinal.substring(0, 100) : contenidoFinal));
+
+                        return String.format("### FUENTE: %s\n### CONTENIDO: %s%s", doc.getName(), numeroArticulo, contenidoFinal);
+                    })
+                    .collect(Collectors.joining("\n\n---\n\n"));
+
+// Guardamos en cache y retornamos
+            cacheConsultas.put(queryKey, contextoLegal);
+            return contextoLegal;
+
+        } catch (Exception e) {
+            System.err.println("--- [ERROR CRÍTICO] Error en comunicación con Vertex: " + e.getMessage());
+            return "Error al recuperar información legal.";
+        }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        if (client != null) {
+            client.close();
         }
     }
 }
