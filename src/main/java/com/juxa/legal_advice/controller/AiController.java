@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
@@ -8,6 +9,7 @@ import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.service.AiBucketService;
+import com.juxa.legal_advice.service.GeminiClient;
 import com.juxa.legal_advice.service.GeminiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,7 @@ public class AiController {
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final AiBucketService aiBucketService;
+    private final GeminiClient geminiClient;
 
     @Autowired(required = false)
     private Storage storage;
@@ -86,7 +89,7 @@ public class AiController {
                 userRepository.save(user);
             }
 
-            // 🌟 LECTURA NATIVA (SIN OCR PARA PDFS)
+            // LECTURA NATIVA (SIN OCR PARA PDFS)
             String fileBase64 = null;
             String mimeType = null;
             String textoOcr = ""; // Solo se usará si suben un archivo Word (.docx)
@@ -140,6 +143,31 @@ public class AiController {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
+    @PostMapping("/proxy-generate")
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String>
+                                                                               payload) {
+        try {
+            String prompt = payload.get("prompt");
+            String aiResponse = geminiClient.callGemini(prompt);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(aiResponse);
+
+            String cleanText = rootNode.path("candidates")
+                    .get(0)
+                    .path("content")
+                    .path("parts")
+                    .get(0)
+                    .path("text")
+                    .asText();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("rawResponse", cleanText);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
 
     private String generarContextoBucket() {
         Map<String, String> carpetaContexto = Map.of(

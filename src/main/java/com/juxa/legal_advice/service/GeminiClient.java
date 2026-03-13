@@ -15,6 +15,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @Component
 public class    GeminiClient {
@@ -150,4 +151,6 @@ public class    GeminiClient {
         // filtrado de metadatos
         return chunk;
     }
+
+
 }
