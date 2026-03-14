@@ -144,31 +144,29 @@ public class AiController {
         }
     }
     @PostMapping("/proxy-generate")
-    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String>
-                                                                               payload) {
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String> payload) {
         try {
             String prompt = payload.get("prompt");
             String aiResponse = geminiClient.callGemini(prompt);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(aiResponse);
 
-            String cleanText = rootNode.path("candidates")
-                    .get(0)
-                    .path("content")
-                    .path("parts")
-                    .get(0)
-                    .path("text")
-                    .asText();
+            // Extracción segura del texto de Google
+            String rawText = rootNode.at("/candidates/0/content/parts/0/text").asText();
+
+            // LIMPIEZA DE MARKDOWN EN EL BACK (Opcional pero recomendado)
+            String cleanText = rawText.replaceAll("(?i)```json", "")
+                    .replaceAll("```", "")
+                    .trim();
 
             Map<String, Object> response = new HashMap<>();
+            // IMPORTANTE: Devolverlo como STRING puro, no como JsonNode
             response.put("rawResponse", cleanText);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
-
     private String generarContextoBucket() {
         Map<String, String> carpetaContexto = Map.of(
                 "Camara_de_Diputados/", "Acuerdos legislativos.",
