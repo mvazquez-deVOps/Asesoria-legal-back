@@ -192,4 +192,23 @@ public class AiController {
         } catch (Exception e) {}
         return contexto.toString();
     }
+
+    // En AiController.java
+
+    @GetMapping("/formats/content")
+    public ResponseEntity<Map<String, String>> getFormatContent(@RequestParam String fileName) {
+        try {
+            // Usamos el servicio que ya tienes para leer archivos de texto
+            String content = aiBucketService.readTextFile(fileName);
+
+            if (content == null || content.isEmpty()) {
+                // Si es un PDF, usamos el lector de PDF
+                content = aiBucketService.readPdfFile(fileName);
+            }
+
+            return ResponseEntity.ok(Map.of("content", content));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "No se pudo leer el archivo"));
+        }
+    }
 }

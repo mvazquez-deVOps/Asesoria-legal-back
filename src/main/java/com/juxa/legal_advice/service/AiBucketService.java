@@ -27,6 +27,7 @@ public class AiBucketService {
     private final Map<String, String> contentCache = new ConcurrentHashMap<>();
 
     public String readTextFile(String fileName) {
+       //  String fullPath = fileName.startsWith("FORMATOS/") ? fileName: "FORMATOS/" + fileName; PARA LECTURA DE FORMATOS
         if (contentCache.containsKey(fileName)) {
             return contentCache.get(fileName);
         }
