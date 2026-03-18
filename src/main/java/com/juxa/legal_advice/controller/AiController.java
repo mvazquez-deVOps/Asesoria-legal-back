@@ -194,4 +194,18 @@ public class AiController {
         } catch (Exception e) {}
         return contexto.toString();
     }
+
+    //Metodo para abrir pdfs en JUXA docs
+    @PostMapping(value = "/extract-text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> extractTextFromDocument(@RequestParam("file") MultipartFile file) {
+        try {
+            // Misma lógica de GeminiService para leer PDFs
+            String textoExtraido = geminiService.extractTextFromFile(file);
+
+            return ResponseEntity.ok(Map.of("extractedText", textoExtraido));
+        } catch (Exception e) {
+            e.printStackTrace(); // Ver el error en consola de Java
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
 }
