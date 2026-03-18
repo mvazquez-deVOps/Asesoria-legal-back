@@ -24,6 +24,8 @@ import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
 
 // 3. SPRING Y LOMBOK
 import org.springframework.beans.factory.annotation.Value;
@@ -413,11 +415,17 @@ public class GeminiService {
                     }
                     return extractedText.toString().trim();
                 }
-            } else if (filename != null && (filename.endsWith(".docx") || filename.endsWith(".doc"))) {
-                try (XWPFDocument doc = new XWPFDocument(file.getInputStream())) {
-                    return new XWPFWordExtractor(doc).getText();
+            } else if (filename != null && filename.toLowerCase().endsWith(".docx")) {
+                try (XWPFDocument docx = new XWPFDocument(file.getInputStream())) {
+                    return new XWPFWordExtractor(docx).getText();
+                }
+            } else if (filename != null && filename.toLowerCase().endsWith(".doc")) {
+                try (HWPFDocument doc = new HWPFDocument(file.getInputStream())) {
+                    WordExtractor extractor = new WordExtractor(doc);
+                    return extractor.getText();
                 }
             }
+
         } catch (Exception e) {
             System.err.println("Error crítico en extracción (OCR): " + e.getMessage());
         }

@@ -50,6 +50,7 @@ dependencies {
 	implementation 'com.google.api-client:google-api-client:2.2.0'
 	implementation 'com.google.http-client:google-http-client-gson:1.43.3'
 	implementation 'org.apache.poi:poi-ooxml:5.2.3' // Para leer archivos .docx
+	implementation 'org.apache.poi:poi-scratchpad:5.2.3' //	Para leer archivos .doc
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	//implementación de Extracción de pdf
 	implementation 'org.apache.pdfbox:pdfbox:2.0.29'
