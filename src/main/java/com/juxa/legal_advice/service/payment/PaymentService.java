@@ -5,8 +5,10 @@ import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.PlanEntity;
+import com.juxa.legal_advice.model.SubscriptionEntity;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.PlanRepository;
+import com.juxa.legal_advice.repository.SubscriptionRepository;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -17,13 +19,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 @Service
 public class PaymentService {
 
     @Value("${stripe.api.key}")
     private String stripeKey;
 
-    // Aquí va la URL de tu frontend (React/Angular) para redirigir al usuario
+    // Aquí va la URL de tu frontend  para redirigir al usuario
     @Value("${frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
@@ -33,6 +38,9 @@ public class PaymentService {
     @Autowired
     private PlanRepository planRepository;
 
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
     @PostConstruct
     public void init() {
         Stripe.apiKey = stripeKey;
@@ -41,9 +49,21 @@ public class PaymentService {
     public PaymentResponseDTO createCheckout(PaymentRequestDTO request) {
         UserDataDTO user = request.getUserData();
 
+        Long idUsuario = Long.parseLong(user.getUserId());
+
+        Optional<SubscriptionEntity> existingSub = subscriptionRepository.findByUserId(idUsuario);
+
+        if (existingSub.isPresent()) {
+            SubscriptionEntity sub = existingSub.get();
+
+            // Verificamos si la fecha actual es ANTES de que termine su periodo
+            // Si es así, significa que la suscripción sigue viva y el usuario tiene acceso.
+            if (sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now())) {
+                throw new RuntimeException("El usuario ya tiene una suscripción activa. Para modificarla, utiliza el Portal de Cliente.");
+            }
+        }
         try {
 
-            // 1. Buscamos el plan en la base de datos según lo que pidió el usuario (ej. "estudiantes")
             PlanEntity plan = planRepository.findByName(user.getCategory())
                     .orElseThrow(() -> new RuntimeException("Plan no encontrado en la base de datos"));
 
@@ -73,11 +93,9 @@ public class PaymentService {
             Session session = Session.create(params);
 
             // 4. Retornamos la URL al frontend.
-            // NOTA: Asegúrate de adaptar tu PaymentResponseDTO para recibir una URL (String)
             return new PaymentResponseDTO(session.getUrl(), session.getId());
 
         } catch (StripeException e) {
-            // Le pasamos la 'e' al final para no perder el rastro exacto del error
             throw new RuntimeException("Error en la API de Stripe: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Error inesperado: " + e.getMessage(), e);
@@ -85,7 +103,6 @@ public class PaymentService {
     }
 
     public PortalResponseDTO createCustomerPortalSession(Long userId) {
-        // 1. Buscamos al usuario en la base de datos
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
@@ -96,12 +113,11 @@ public class PaymentService {
         }
 
         try {
-            // 3. Creamos los parámetros para el portal
             com.stripe.param.billingportal.SessionCreateParams params =
                     com.stripe.param.billingportal.SessionCreateParams.builder()
                             .setCustomer(customerId)
                             // URL a la que el usuario regresará al hacer clic en "Volver" en el portal de Stripe
-                            .setReturnUrl(frontendUrl + "/mi-cuenta") // <--- CAMBIAR según la ruta de tu frontend
+                            .setReturnUrl(frontendUrl + "/mi-cuenta") // <--- CAMBIAR según la ruta de tu frontend //////////////////
                             .build();
 
             // 4. Creamos la sesión en Stripe
