@@ -67,6 +67,14 @@ public class UserEntity {
         // 3. Lógica de Negocio: 60 días de prueba (Trial)
         this.trialEndDate = LocalDateTime.now().plusDays(60);
     }
+
+    @Column(name = "stripe_customer_id", unique = true)
+    private String stripeCustomerId;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private PlanUsageEntity planUsage;
     }
 
 
