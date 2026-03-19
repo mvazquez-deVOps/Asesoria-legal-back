@@ -35,10 +35,14 @@ public class StripeWebhookService {
     @Value("${stripe.webhook.secret}")
     private String endpointSecret;
 
-    @Autowired private SubscriptionRepository subscriptionRepository;
-    @Autowired private PaymentHistoryRepository paymentHistoryRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private PlanRepository planRepository;
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
+    @Autowired
+    private PaymentHistoryRepository paymentHistoryRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private PlanRepository planRepository;
 
     public String handleWebhook(String payload, String sigHeader) {
         Event event;
@@ -74,7 +78,7 @@ public class StripeWebhookService {
                     handleInvoicePayment((Invoice) stripeObject, false);
                     return "Fallo de pago registrado";
 
-                case "customer.subscription.deleted":
+              //  case "customer.subscription.deleted":
                 case "customer.subscription.updated":
                     log.info("🔄 Procesando actualización/eliminación de suscripción...");
                     handleSubscriptionUpdate((Subscription) stripeObject);
@@ -148,12 +152,12 @@ public class StripeWebhookService {
         SubscriptionEntity subToSave;
 
         LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getStartDate()), ZoneId.systemDefault());
-       // LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getEndedAt()), ZoneId.systemDefault());
+        // LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getEndedAt()), ZoneId.systemDefault());
         Long periodEndEpoch = stripeSub.getItems().getData().get(0).getCurrentPeriodEnd();
         LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEndEpoch), ZoneId.systemDefault());
         ;
 
-;
+        ;
 
         if (existingSub.isPresent()) {
             log.info("⬆️ El usuario ya tenía una suscripción. Actualizando (Upgrade/Downgrade)...");
@@ -180,7 +184,19 @@ public class StripeWebhookService {
     }
 
     private void handleInvoicePayment(Invoice invoice, boolean isSuccess) {
-        // 1. Extraemos el ID de la suscripción con la nueva estructura de Stripe
+        log.info("=========================================================");
+        log.info("🚨 INICIANDO DEPURACIÓN DE FACTURA (INVOICE.PAID) 🚨");
+        log.info("📦 CONTENIDO COMPLETO DE LA FACTURA DESDE STRIPE:\n{}", invoice.toJson());
+
+        log.info("👉 1. Valor directo de invoice.getSubscription(): {}", invoice.getRawJsonObject());
+
+        if (invoice.getParent() != null) {
+            log.info("👉 2. El Parent existe. Tipo de Parent: {}", invoice.getParent().getType());
+        } else {
+            log.info("👉 2. El Parent es NULL");
+        }
+        log.info("=========================================================");
+
         String subscriptionId;
         if (invoice.getParent() != null && "subscription_details".equals(invoice.getParent().getType())) {
             subscriptionId = invoice.getParent().getSubscriptionDetails().getSubscription();
@@ -188,15 +204,14 @@ public class StripeWebhookService {
             subscriptionId = null;
         }
 
-        // 2. Validamos si la factura realmente pertenece a una suscripción
         if (subscriptionId == null) {
-            log.debug("ℹ️ Factura ignorada porque no pertenece a una suscripción.");
+            // Lo cambié a log.warn para asegurarnos de que lo veas en la consola
+            log.warn("⚠️ Factura ignorada porque subscriptionId se evaluó como NULL. Revisa la estructura en el JSON de arriba.");
             return;
         }
 
         log.info("🔍 Buscando suscripción {} para adjuntarle la factura...", subscriptionId);
 
-        // 3. Usamos la variable subscriptionId en lugar de invoice.getSubscription()
         subscriptionRepository.findByStripeSubscriptionId(subscriptionId)
                 .ifPresentOrElse(subEntity -> {
                     BigDecimal amount = BigDecimal.valueOf(invoice.getAmountPaid()).divide(BigDecimal.valueOf(100));
@@ -215,10 +230,15 @@ public class StripeWebhookService {
                     paymentHistoryRepository.save(payment);
                     log.info("✅ Historial de pago guardado. Factura: {}, Status: {}, Monto: ${}",
                             invoice.getId(), invoice.getStatus(), amount);
-                }, () -> log.warn("⚠️ Factura recibida para la suscripción {}, pero no existe en nuestra DB.", subscriptionId));
+
+                }, () -> {
+                    log.error("⚠️ La suscripción {} aún no existe en DB. Lanzando error para forzar reintento de Stripe.", subscriptionId);
+                    throw new RuntimeException("Suscripción no encontrada. Forzando reintento del webhook invoice.paid");
+                });
     }
 
-    private void handleSubscriptionUpdate(Subscription stripeSub) {
+
+ /*   private void handleSubscriptionUpdate(Subscription stripeSub) {
         log.info("🔄 Actualizando status de la suscripción {}...", stripeSub.getId());
         subscriptionRepository.findByStripeSubscriptionId(stripeSub.getId())
                 .ifPresentOrElse(subEntity -> {
@@ -228,7 +248,7 @@ public class StripeWebhookService {
                         subEntity.setCurrentPeriodEnd(LocalDateTime.now());
                         log.info("🛑 Suscripción cancelada. Fecha de expiración forzada a hoy.");
                     } else {
-                        // El método NO getCurrentPeriodEnd() es el correcto para la v31+
+                        // este es el metodo correcto para sacar el final del periodo de la suscripción, no lo cambies
                         Long periodEndEpoch = stripeSub.getItems().getData().get(0).getCurrentPeriodEnd();
                         LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEndEpoch), ZoneId.systemDefault());                    }
 
@@ -237,4 +257,50 @@ public class StripeWebhookService {
                     log.info("✅ Suscripción actualizada en DB a status: {}", stripeSub.getStatus());
                 }, () -> log.warn("⚠️ Intentamos actualizar la suscripción {}, pero no existe en DB.", stripeSub.getId()));
     }
+}*/
+ private void handleSubscriptionUpdate(Subscription eventSub) {
+     log.info("🔄 Actualizando status de la suscripción {}...", eventSub.getId());
+
+     try {
+         Subscription stripeSub = Subscription.retrieve(eventSub.getId());
+
+         log.info("👉 Status fresco extraído: {}", stripeSub.getStatus());
+         log.info("👉 CancelAtPeriodEnd fresco extraído: {}", stripeSub.getCancelAtPeriodEnd());
+         log.info("👉 CancelAt (fecha) fresco extraído: {}", stripeSub.getCancelAt());
+
+         subscriptionRepository.findByStripeSubscriptionId(stripeSub.getId())
+                 .ifPresentOrElse(subEntity -> {
+                     subEntity.setStatus(stripeSub.getStatus());
+
+                     if ("canceled".equals(stripeSub.getStatus()) || "unpaid".equals(stripeSub.getStatus())) {
+                         subEntity.setCurrentPeriodEnd(LocalDateTime.now());
+                         log.info("🛑 Suscripción cancelada. Fecha de expiración forzada a hoy.");
+                     } else {
+                         Long periodEndEpoch = stripeSub.getItems().getData().get(0).getCurrentPeriodEnd();
+                         LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEndEpoch), ZoneId.systemDefault());
+                         subEntity.setCurrentPeriodEnd(end);
+                     }
+
+                     // ==========================================
+                     // LA SOLUCIÓN: Revisar tanto el booleano como la fecha
+                     // ==========================================
+                     boolean hasBooleanCancel = stripeSub.getCancelAtPeriodEnd() != null && stripeSub.getCancelAtPeriodEnd();
+                     boolean hasDateCancel = stripeSub.getCancelAt() != null;
+
+                     // Si cualquiera de los dos es verdadero, la suscripción se cancelará
+                     boolean isScheduledToCancel = hasBooleanCancel || hasDateCancel;
+
+                     subEntity.setCancelAtPeriodEnd(isScheduledToCancel);
+                     // ==========================================
+
+                     subscriptionRepository.save(subEntity);
+                     log.info("✅ Suscripción actualizada en DB a status: {} y cancelAtPeriodEnd: {}",
+                             subEntity.getStatus(), subEntity.isCancelAtPeriodEnd());
+                 }, () -> log.warn("⚠️ Intentamos actualizar la suscripción {}, pero no existe en DB.", stripeSub.getId()));
+
+     } catch (Exception e) {
+         log.error("❌ Error al recuperar la suscripción actualizada de Stripe: {}", e.getMessage());
+         throw new RuntimeException("Error al actualizar la suscripción", e);
+     }
+ }
 }

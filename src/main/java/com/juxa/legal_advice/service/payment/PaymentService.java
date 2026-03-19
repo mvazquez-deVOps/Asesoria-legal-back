@@ -1,10 +1,13 @@
 package com.juxa.legal_advice.service.payment;
 
-import com.juxa.legal_advice.dto.PaymentRequestDTO;
-import com.juxa.legal_advice.dto.PaymentResponseDTO;
+import com.juxa.legal_advice.dto.PortalResponseDTO;
+import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
+import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.PlanEntity;
+import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.PlanRepository;
+import com.juxa.legal_advice.repository.UserRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
@@ -25,6 +28,9 @@ public class PaymentService {
     private String frontendUrl;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private PlanRepository planRepository;
 
     @PostConstruct
@@ -41,9 +47,6 @@ public class PaymentService {
             PlanEntity plan = planRepository.findByName(user.getCategory())
                     .orElseThrow(() -> new RuntimeException("Plan no encontrado en la base de datos"));
 
-            // OJO: En tu BD actual los stripe_price_id dicen "estudiantes", etc.
-            // Para que Stripe funcione, debes ir a tu panel de Stripe, crear los productos,
-            // copiar sus IDs reales (empiezan con price_...) y actualizar tu tabla plans.
             String stripePriceId = plan.getStripePriceId();
 
             // 2. Creamos los parámetros para la Sesión de Checkout (Modo Suscripción)
@@ -78,6 +81,40 @@ public class PaymentService {
             throw new RuntimeException("Error en la API de Stripe: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Error inesperado: " + e.getMessage(), e);
+        }
+    }
+
+    public PortalResponseDTO createCustomerPortalSession(Long userId) {
+        // 1. Buscamos al usuario en la base de datos
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        // 2. Verificamos que el usuario tenga un ID de cliente de Stripe
+        String customerId = user.getStripeCustomerId();
+        if (customerId == null || customerId.trim().isEmpty()) {
+            throw new RuntimeException("El usuario no tiene un método de pago registrado en Stripe. No puede acceder al portal.");
+        }
+
+        try {
+            // 3. Creamos los parámetros para el portal
+            com.stripe.param.billingportal.SessionCreateParams params =
+                    com.stripe.param.billingportal.SessionCreateParams.builder()
+                            .setCustomer(customerId)
+                            // URL a la que el usuario regresará al hacer clic en "Volver" en el portal de Stripe
+                            .setReturnUrl(frontendUrl + "/mi-cuenta") // <--- CAMBIAR según la ruta de tu frontend
+                            .build();
+
+            // 4. Creamos la sesión en Stripe
+            com.stripe.model.billingportal.Session portalSession =
+                    com.stripe.model.billingportal.Session.create(params);
+
+            // 5. Devolvemos la URL generada
+            return new PortalResponseDTO(portalSession.getUrl());
+
+        } catch (StripeException e) {
+            throw new RuntimeException("Error en la API de Stripe al generar el portal: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Error inesperado al generar el portal: " + e.getMessage(), e);
         }
     }
 }
