@@ -2,8 +2,10 @@ package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.PaymentResponseDTO;
-import com.juxa.legal_advice.service.PaymentService;
+import com.juxa.legal_advice.service.payment.PaymentService;
 import com.juxa.legal_advice.service.payment.StripeWebhookService; // Asegúrate de importar esto
+import org.slf4j.Logger;///////////////////////////////////////////////////////////
+import org.slf4j.LoggerFactory;/////////////////////////////////////
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
-
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class); ////////////////
     @Autowired
     private PaymentService paymentService;
 
@@ -24,18 +26,21 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.createCheckout(request));
     }
 
-    // NUEVO: Endpoint para el Webhook de Stripe
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeWebhook(
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
-
         try {
-            stripeWebhookService.handleWebhook(payload, sigHeader);
-            return ResponseEntity.ok("Webhook recibido");
+            // Guardamos el mensaje que nos regresa el servicio
+            String resultado = stripeWebhookService.handleWebhook(payload, sigHeader);
+
+            // Retornamos un HTTP 200 OK con el mensaje en el body
+            return ResponseEntity.ok(resultado);
+
         } catch (Exception e) {
             System.err.println("Error procesando el webhook: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error en webhook");
+            // Si algo falla, retornamos un HTTP 400 Bad Request
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error en webhook: " + e.getMessage());
         }
     }
 }
