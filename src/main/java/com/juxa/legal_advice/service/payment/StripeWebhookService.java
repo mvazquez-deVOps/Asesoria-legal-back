@@ -283,6 +283,8 @@ public class StripeWebhookService {
 
             subscriptionRepository.findByStripeSubscriptionId(stripeSub.getId())
                     .ifPresentOrElse(subEntity -> {
+
+                        // 1. TU LÓGICA ORIGINAL DE ESTATUS Y FECHAS (INTACTA)
                         subEntity.setStatus(stripeSub.getStatus());
 
                         if ("canceled".equals(stripeSub.getStatus()) || "unpaid".equals(stripeSub.getStatus())) {
@@ -294,19 +296,50 @@ public class StripeWebhookService {
                             subEntity.setCurrentPeriodEnd(end);
                         }
 
-                        //Usamos esto porque a veces alguno de los dos valores puede ser null
+                        // 2. TU LÓGICA ORIGINAL DE CANCELACIÓN (INTACTA)
                         boolean hasBooleanCancel = stripeSub.getCancelAtPeriodEnd() != null && stripeSub.getCancelAtPeriodEnd();
                         boolean hasDateCancel = stripeSub.getCancelAt() != null;
-
-                        // Si cualquiera de los dos es verdadero, la suscripción se cancelará
                         boolean isScheduledToCancel = hasBooleanCancel || hasDateCancel;
 
                         subEntity.setCancelAtPeriodEnd(isScheduledToCancel);
-                        // ==========================================
 
+                        // ====================================================================
+                        // 3. 👇 AQUÍ INSERTAMOS SOLAMENTE LA LÓGICA DE CAMBIO DE PLAN 👇
+                        // ====================================================================
+                        try {
+                            // Extraemos el Price ID actual que Stripe está cobrando
+                            String currentStripePriceId = stripeSub.getItems().getData().get(0).getPrice().getId();
+
+                            // Si el Price ID de Stripe es diferente al que tenemos guardado, ¡hubo un cambio!
+                            if (!subEntity.getPlan().getStripePriceId().equals(currentStripePriceId)) {
+                                log.info("⬆️⬇️ ¡Cambio de plan detectado! Nuevo Stripe Price ID: {}", currentStripePriceId);
+
+                                // Buscamos el nuevo plan en nuestra DB
+                                PlanEntity newPlan = planRepository.findByStripePriceId(currentStripePriceId)
+                                        .orElseThrow(() -> new RuntimeException("No se encontró el plan con stripe_price_id: " + currentStripePriceId));
+
+                                // Actualizamos la suscripción con el nuevo plan
+                                subEntity.setPlan(newPlan);
+
+                                // Actualizamos también la tabla del usuario
+                                UserEntity user = subEntity.getUser();
+                                user.setSubscriptionPlan(newPlan.getName());
+                                userRepository.save(user);
+
+                                log.info("✅ Plan actualizado con éxito en BD al plan: {}", newPlan.getName());
+                            }
+                        } catch (Exception e) {
+                            log.error("⚠️ Error intentando actualizar el plan de la suscripción: {}", e.getMessage());
+                        }
+                        // ====================================================================
+                        // 👆 FIN DE LA LÓGICA DE CAMBIO DE PLAN 👆
+                        // ====================================================================
+
+                        // 4. GUARDAMOS LOS CAMBIOS FINALES
                         subscriptionRepository.save(subEntity);
                         log.info("✅ Suscripción actualizada en DB a status: {} y cancelAtPeriodEnd: {}",
                                 subEntity.getStatus(), subEntity.isCancelAtPeriodEnd());
+
                     }, () -> log.warn("⚠️ Intentamos actualizar la suscripción {}, pero no existe en DB.", stripeSub.getId()));
 
         } catch (Exception e) {
