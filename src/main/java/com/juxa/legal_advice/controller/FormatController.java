@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.controller;
 
+import com.juxa.legal_advice.dto.FormatDTO;
 import com.juxa.legal_advice.service.AiBucketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,8 +18,11 @@ public class FormatController {
 
     // Endpoint para que Paws muestre la lista de plantillas al abogado
     @GetMapping("/list")
-    public ResponseEntity<List<String>> getAvailableFormats() {
-        return ResponseEntity.ok(bucketService.listAvailableFormats());
+    public ResponseEntity<List<FormatDTO>> getAvailableFormats(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam (required = false) String sort) {
+
+        return ResponseEntity.ok(bucketService.listAvailableFormats(limit));
     }
 
     // Endpoint para limpiar caché tras subir un nuevo archivo al bucket

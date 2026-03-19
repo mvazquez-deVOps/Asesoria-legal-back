@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         // Añade el comodín para cubrir todos los endpoints de IA
                         .requestMatchers("/api/ai/**").permitAll()
+                        .requestMatchers("/api/v1/formats/**").authenticated()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
