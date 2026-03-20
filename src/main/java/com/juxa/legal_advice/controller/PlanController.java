@@ -10,6 +10,7 @@ import com.juxa.legal_advice.service.UsageAuthorizationService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,15 +37,18 @@ public class PlanController {
         return ResponseEntity.ok(plans);
     }
 
+
     @GetMapping("/me/usage")
     public ResponseEntity<UsageResponseDTO> getUserUsage() {
         UserEntity currentUser = userService.getCurrentAuthenticatedUser();
         JuxaPlanDef planDef = JuxaPlanDef.fromString(currentUser.getSubscriptionPlan());
 
-        // Forzamos el reset por si entra al dashboard y es un nuevo día
         PlanUsageEntity usage = usageAuthService.getUsageStats(currentUser);
 
-        // Construimos la respuesta fuertemente tipada
+        // Cálculos de límites
+        boolean canQuery = planDef.getMaxQueriesPerDay() == -1 || usage.getQueriesUsedToday() < planDef.getMaxQueriesPerDay();
+        boolean canUpload = planDef.getMaxFilesPerDay() == -1 || usage.getFilesUploadedToday() < planDef.getMaxFilesPerDay();
+
         UsageResponseDTO response = UsageResponseDTO.builder()
                 .planName(planDef.getDbName())
                 .queriesUsed(usage.getQueriesUsedToday())
@@ -52,6 +56,11 @@ public class PlanController {
                 .filesUsed(usage.getFilesUploadedToday())
                 .filesLimit(planDef.getMaxFilesPerDay())
                 .aiModel(planDef.getAiModel())
+                .canMakeMoreQueries(canQuery)
+                .canUploadMoreFiles(canUpload)
+                .canUploadAudio(planDef.isCanUploadAudio())
+                .canUploadVideo(planDef.isCanUploadVideo())
+                .hasFullHistory(planDef.isHasFullHistory())
                 .build();
 
         return ResponseEntity.ok(response);
