@@ -1,7 +1,7 @@
 package com.juxa.legal_advice.service;
 
-import com.juxa.legal_advice.dto.PaymentRequestDTO;
-import com.juxa.legal_advice.dto.PaymentResponseDTO;
+import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
+import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;

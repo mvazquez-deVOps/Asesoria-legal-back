@@ -1,5 +1,6 @@
-package com.juxa.legal_advice.dto;
+package com.juxa.legal_advice.dto.payment;
 
+import com.juxa.legal_advice.dto.UserDataDTO;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
