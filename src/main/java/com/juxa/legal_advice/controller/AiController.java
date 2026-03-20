@@ -193,22 +193,17 @@ public class AiController {
         return contexto.toString();
     }
 
-    // En AiController.java
-
-    @GetMapping("/formats/content")
-    public ResponseEntity<Map<String, String>> getFormatContent(@RequestParam String fileName) {
+    //Metodo para abrir pdfs en JUXA docs
+    @PostMapping(value = "/extract-text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> extractTextFromDocument(@RequestParam("file") MultipartFile file) {
         try {
-            // Usamos el servicio que ya tienes para leer archivos de texto
-            String content = aiBucketService.readTextFile(fileName);
+            // Misma lógica de GeminiService para leer PDFs
+            String textoExtraido = geminiService.extractTextFromFile(file);
 
-            if (content == null || content.isEmpty()) {
-                // Si es un PDF, usamos el lector de PDF
-                content = aiBucketService.readPdfFile(fileName);
-            }
-
-            return ResponseEntity.ok(Map.of("content", content));
+            return ResponseEntity.ok(Map.of("extractedText", textoExtraido));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "No se pudo leer el archivo"));
+            e.printStackTrace(); // Ver el error en consola de Java
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 }
