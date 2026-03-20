@@ -154,13 +154,13 @@ public class AiController {
             // Extracción segura del texto de Google
             String rawText = rootNode.at("/candidates/0/content/parts/0/text").asText();
 
-            // LIMPIEZA DE MARKDOWN EN EL BACK (Opcional pero recomendado)
+            // LIMPIEZA DE MARKDOWN
             String cleanText = rawText.replaceAll("(?i)```json", "")
                     .replaceAll("```", "")
                     .trim();
 
             Map<String, Object> response = new HashMap<>();
-            // IMPORTANTE: Devolverlo como STRING puro, no como JsonNode
+            // IMPORTANTE: Devolverlo como STRING
             response.put("rawResponse", cleanText);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
