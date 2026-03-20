@@ -1,18 +1,23 @@
 package com.juxa.legal_advice.service;
 
-import com.juxa.legal_advice.dto.AuthRequestDTO;
-import com.juxa.legal_advice.dto.AuthResponseDTO;
-import com.juxa.legal_advice.dto.UserDataDTO;
-import com.juxa.legal_advice.dto.UserRegistrationDTO;
+import com.juxa.legal_advice.config.JuxaPlanDef;
+import com.juxa.legal_advice.dto.*;
+import com.juxa.legal_advice.model.PlanEntity;
+import com.juxa.legal_advice.model.SubscriptionEntity;
 import com.juxa.legal_advice.model.UserEntity;
+import com.juxa.legal_advice.repository.SubscriptionRepository;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +26,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder; // Inyectado desde SecurityConfig
+    private final SubscriptionRepository subscriptionRepository;
 
     /**
      * Proceso de Login y Autenticación
@@ -65,7 +71,55 @@ public class UserService {
 
     }
 
-    /**
+    public UserSubscriptionResponseDTO getMySubscriptionStatus(String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        String planName = user.getSubscriptionPlan() != null ? user.getSubscriptionPlan() : "FREE";
+
+        // ========================================================================
+        // NUEVA LÓGICA: Si es FREE (o BASIC), no buscamos en la tabla Subscriptions
+        // ========================================================================
+        if ("FREE".equalsIgnoreCase(planName) || "BASIC".equalsIgnoreCase(planName)) {
+            boolean isTrialActive = user.getTrialEndDate() != null && user.getTrialEndDate().isAfter(LocalDateTime.now());
+
+            return UserSubscriptionResponseDTO.builder()
+                    .hasActiveSubscription(isTrialActive)
+                    .planName("FREE")
+                    .status(isTrialActive ? "trialing" : "inactive")
+                    .currentPeriodEnd(user.getTrialEndDate())
+                    .willCancelAtPeriodEnd(false)
+                    .build();
+        }
+        // ========================================================================
+
+        // Si NO es FREE, buscamos su suscripción de pago
+        Optional<SubscriptionEntity> subOpt = subscriptionRepository.findByUserId(user.getId());
+
+        if (subOpt.isPresent()) {
+            SubscriptionEntity sub = subOpt.get();
+
+            boolean isActive = sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now());
+            boolean willCancel = sub.isCancelAtPeriodEnd();
+
+            return UserSubscriptionResponseDTO.builder()
+                    .hasActiveSubscription(isActive)
+                    .planName(planName)
+                    .status(sub.getStatus())
+                    .currentPeriodEnd(sub.getCurrentPeriodEnd())
+                    .willCancelAtPeriodEnd(willCancel)
+                    .build();
+        } else {
+            // Fallback por si la base de datos se desincroniza (dice que tiene plan pero no hay registro)
+            return UserSubscriptionResponseDTO.builder()
+                    .hasActiveSubscription(false)
+                    .planName("FREE")
+                    .status("inactive")
+                    .currentPeriodEnd(null)
+                    .willCancelAtPeriodEnd(false)
+                    .build();
+        }
+    }    /**
      * Proceso de Registro de nuevos usuarios
      */
     @Transactional
