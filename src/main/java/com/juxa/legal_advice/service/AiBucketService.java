@@ -23,10 +23,11 @@ public class AiBucketService {
             .build()
             .getService();
 
-    private final String bucketName = "asesoria-legal-bucket";
+    @Value("${gcp.bucket-name}")
+    private String bucketName; // Esto leerá: asistente_legal_curita_v2
 
-    @Value("${gcp.bucket.formats:juxa-repository}")
-    private String formatsBucketName;
+    @Value("${gcp.bucket.formats}")
+    private String bucketFormats;
 
     // CACHÉ: evita latencia y costos de lectura repetitiva en Google Cloud
     private final Map<String, String> contentCache = new ConcurrentHashMap<>();
@@ -148,21 +149,21 @@ public class AiBucketService {
     public List<FormatDTO> listAvailableFormats(Integer limit) {
         List<FormatDTO> formats = new ArrayList<>();
         try {
-            Page<Blob> blobs = storage.list(formatsBucketName);
+            Page<Blob> blobs = storage.list(bucketFormats);
             int counter = 1;
 
             for (Blob blob : blobs.iterateAll()) {
                 // Procesar archivos .docx
                 if (!blob.isDirectory() && blob.getName().toLowerCase().endsWith(".docx")) {
                     String title = blob.getName().replace(".docx", "").replace("_", " ");
-                    String fileUrl = "https://storage.googleapis.com/" + formatsBucketName + "/" + blob.getName();
+                    String fileUrl = "https://storage.googleapis.com/" + bucketFormats + "/" + blob.getName();
 
                     FormatDTO format = FormatDTO.builder()
                             .id(String.valueOf(counter++))
-                            .title(title)
-                            .description("Plantilla oficial de JUXA validada par su uso legal.")
+                            .title(title != null && !title.isBlank() ? title : "Documento sin título") // <- Blindaje
+                            .description("Plantilla oficial de JUXA validada para su uso legal.")
                             .fileUrl(fileUrl)
-                            .downloads((int) (Math.random() * 500) + 100) //Dato simulado
+                            .downloads((int) (Math.random() * 500) + 100)
                             .category("FORMATO JUXA")
                             .build();
 
