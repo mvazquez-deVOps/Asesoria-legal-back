@@ -154,7 +154,10 @@ public class StripeWebhookService {
         log.info("👤 Asignando Stripe Customer ID ({}) al usuario {}", session.getCustomer(), user.getEmail());
         user.setStripeCustomerId(session.getCustomer());
         user.setSubscriptionPlan(plan.getName());
+
+        applyTrialStatus(stripeSub, user);
         userRepository.save(user);
+
 
         // 2. Revisamos si ya existe una suscripción
         Optional<SubscriptionEntity> existingSub = subscriptionRepository.findByUserId(userId);
@@ -347,4 +350,26 @@ public class StripeWebhookService {
             throw new RuntimeException("Error al actualizar la suscripción", e);
         }
     }
+
+
+    private void applyTrialStatus(Subscription stripeSub, UserEntity user) {
+        try {
+            // Si Stripe nos indica que hay una fecha de fin de Trial
+            if (stripeSub.getTrialEnd() != null) {
+                LocalDateTime trialEnd = LocalDateTime.ofInstant(
+                        Instant.ofEpochSecond(stripeSub.getTrialEnd()),
+                        ZoneId.systemDefault()
+                );
+                user.setTrialEndDate(trialEnd); // Asignamos la fecha a MySQL
+                log.info("⏳ [TRIAL] Usuario {} en periodo de prueba hasta: {}", user.getEmail(), trialEnd);
+            } else {
+                // Si no hay trial, asegurarnos de que la columna sea null
+                user.setTrialEndDate(null);
+                log.info("▶️ [TRIAL] Suscripción estándar (Sin periodo de prueba) para {}", user.getEmail());
+            }
+        } catch (Exception e) {
+            log.error("⚠️ Error aislado procesando la fecha de Trial: {}", e.getMessage());
+        }
+    }
+    // ====================================================================
 }

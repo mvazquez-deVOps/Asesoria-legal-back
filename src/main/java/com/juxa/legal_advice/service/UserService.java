@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.config.JuxaPlanDef;
+import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.model.SubscriptionEntity;
@@ -196,7 +197,7 @@ public class UserService {
 
         // Si no hay contexto o es un endpoint público (anónimo)
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new RuntimeException("No hay una sesión activa o el token es inválido.");
+            throw new UnauthorizedUserException("No hay una sesión activa o el token es inválido.");
         }
 
         String email;
