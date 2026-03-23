@@ -18,9 +18,6 @@ public class PlanEntity {
     @Column(nullable = false)
     private String name;
 
-    @Column(length = 1024)
-    private String description;
-
     @Column(name = "stripe_price_id", nullable = false, unique = true)
     private String stripePriceId;
 }

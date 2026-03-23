@@ -15,4 +15,6 @@ public interface PaymentHistoryRepository extends JpaRepository<PaymentHistoryEn
 
     // Útil para traer todo el historial de pagos de una suscripción en particular
     List<PaymentHistoryEntity> findBySubscriptionId(Long subscriptionId);
+
+    boolean existsByStripeInvoiceId(String stripeInvoiceId);
 }

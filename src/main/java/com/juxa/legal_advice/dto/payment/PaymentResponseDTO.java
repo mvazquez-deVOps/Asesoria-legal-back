@@ -1,4 +1,4 @@
-package com.juxa.legal_advice.dto;
+package com.juxa.legal_advice.dto.payment;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

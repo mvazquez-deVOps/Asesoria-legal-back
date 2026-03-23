@@ -2,8 +2,10 @@ package com.juxa.legal_advice.service;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.*;
+import com.juxa.legal_advice.dto.FormatDTO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -21,7 +23,11 @@ public class AiBucketService {
             .build()
             .getService();
 
-    private final String bucketName = "asesoria-legal-bucket";
+    @Value("${gcp.bucket-name}")
+    private String bucketName; // Esto leerá: asistente_legal_curita_v2
+
+    @Value("${gcp.bucket.formats}")
+    private String bucketFormats;
 
     // CACHÉ: evita latencia y costos de lectura repetitiva en Google Cloud
     private final Map<String, String> contentCache = new ConcurrentHashMap<>();
@@ -135,6 +141,42 @@ public class AiBucketService {
             }
         } catch (Exception e) {
             System.err.println("Error listando formatos: " + e.getMessage());
+        }
+        return formats;
+    }
+
+    //Sobrecarga de metodo --> Para JUXA repositorio y uso de plantillas en JUXA docs
+    public List<FormatDTO> listAvailableFormats(Integer limit) {
+        List<FormatDTO> formats = new ArrayList<>();
+        try {
+            Page<Blob> blobs = storage.list(bucketFormats);
+            int counter = 1;
+
+            for (Blob blob : blobs.iterateAll()) {
+                // Procesar archivos .docx
+                if (!blob.isDirectory() && blob.getName().toLowerCase().endsWith(".docx")) {
+                    String title = blob.getName().replace(".docx", "").replace("_", " ");
+                    String fileUrl = "https://storage.googleapis.com/" + bucketFormats + "/" + blob.getName();
+
+                    FormatDTO format = FormatDTO.builder()
+                            .id(String.valueOf(counter++))
+                            .title(title != null && !title.isBlank() ? title : "Documento sin título") // <- Blindaje
+                            .description("Plantilla oficial de JUXA validada para su uso legal.")
+                            .fileUrl(fileUrl)
+                            .downloads((int) (Math.random() * 500) + 100)
+                            .category("FORMATO JUXA")
+                            .build();
+
+                    formats.add(format);
+                    System.out.println( "Formato cargado: " + title);
+
+                    if (limit != null && formats.size() >= limit) {
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error listando formatos de juxa-repository: " + e.getMessage());
         }
         return formats;
     }

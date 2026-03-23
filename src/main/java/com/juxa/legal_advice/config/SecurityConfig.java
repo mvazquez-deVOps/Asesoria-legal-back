@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         // Añade el comodín para cubrir todos los endpoints de IA
                         .requestMatchers("/api/ai/**").permitAll()
+                        .requestMatchers("/api/v1/formats/**").authenticated()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
@@ -95,7 +96,8 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "https://asesorialegal-abogados-284685729356.us-central1.run.app",
                 "https://asesoriajuridica.tech",
-                "https://techlegal.io"
+                "https://techlegal.io",
+                "https://asesorialegal-front-test-284685729356.us-central1.run.app"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios

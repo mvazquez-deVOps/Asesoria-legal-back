@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface PlanRepository extends JpaRepository<PlanEntity, Long> {
     Optional<PlanEntity> findByName(String name);
+    Optional<PlanEntity> findByStripePriceId(String stripePriceId);
 }
