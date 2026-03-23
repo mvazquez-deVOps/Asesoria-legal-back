@@ -246,14 +246,31 @@ public class GeminiService {
         return extractTextFromResponse(fullResponse);
     }
 
-    // Nuevo extractor estructurado: diagnosis + suggestions
+    // Nuevo extractor estructurado: diagnosis + suggestions + usage metadata
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
             // 1. Navegación en el árbol de respuesta de Google
             JsonNode root = objectMapper.readTree(response);
+
+            // 1.1 Extraer el texto principal
             String rawText = root.path("candidates").get(0)
                     .path("content").path("parts")
                     .get(0).path("text").asText();
+
+            // 1.2 Extraer los tokens de uso de forma segura (NUEVO)
+            Map<String, Integer> usageStats = new HashMap<>();
+            JsonNode usageNode = root.path("usageMetadata");
+            if (!usageNode.isMissingNode()) {
+                usageStats.put("inputTokens", usageNode.path("promptTokenCount").asInt(0));
+                usageStats.put("cachedTokens", usageNode.path("cachedContentTokenCount").asInt(0));
+                usageStats.put("outputTokens", usageNode.path("candidatesTokenCount").asInt(0));
+                usageStats.put("totalTokens", usageNode.path("totalTokenCount").asInt(0));
+            } else {
+                usageStats.put("inputTokens", 0);
+                usageStats.put("cachedTokens", 0);
+                usageStats.put("outputTokens", 0);
+                usageStats.put("totalTokens", 0);
+            }
 
             // --- CAPA DE SEGURIDAD: EL INTERCEPTOR ---
             // Si el texto contiene tus secretos, cortamos la comunicación de inmediato.
@@ -287,7 +304,7 @@ public class GeminiService {
                 result.put("text", result.get("diagnosis"));
             }
 
-            // 5. Garantía de campos
+            // 5. Garantía de campos (Sugerencias)
             if (!result.containsKey("suggestions") || ((List<?>) result.get("suggestions")).isEmpty()) {
                 result.put("suggestions", new java.util.ArrayList<>(List.of(
                         Map.of(
@@ -314,7 +331,7 @@ public class GeminiService {
                 }
             }
 
-            // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
+            // 6. PROMPTS ESTRATÉGICOS
             if (!result.containsKey("suggestedPrompts") || ((List<?>) result.get("suggestedPrompts")).isEmpty()) {
                 result.put("suggestedPrompts", new java.util.ArrayList<>(List.of(
                         "¿Cuáles son los siguientes pasos legales?",
@@ -324,6 +341,9 @@ public class GeminiService {
             }
 
             result.putIfAbsent("downloadPdf", false);
+
+            // 7. INYECTAR LAS ESTADÍSTICAS DE USO EN LA RESPUESTA FINAL (NUEVO)
+            result.put("_usageMetadata", usageStats);
 
             return result;
 

@@ -5,26 +5,24 @@ import lombok.Getter;
 @Getter
 public enum JuxaPlanDef {
 
-    // (dbName, maxQueries, maxFiles, aiModel, canUploadAudio, canUploadVideo, hasFullHistory)
-    FREE("FREE", -1, 0, "gemini-1.5-flash", false, false, false),
-    ESTUDIANTES("estudiantes", 20, 1, "gemini-1.5-flash", false, false, false),
-    JUXA_GO("juxa_go", 20, 3, "gemini-1.5-flash", false, false, false),
-    JUNIOR("esencial_junior", 30, 5, "gemini-1.5-flash", false, false, true),
-    PRO("intermedio_pro", 50, 10, "gemini-1.5-pro", true, false, true),
-    ELITE("premium_elite", -1, -1, "gemini-3.0-pro", true, true, true);
+    // (dbName, maxTokens, aiModel, canUploadAudio, canUploadVideo, hasFullHistory)
+    FREE("FREE", 50000, "gemini-1.5-flash", false, false, false), // 50k tokens (aprox. 30 interacciones simples)
+    ESTUDIANTES("estudiantes", 250000, "gemini-1.5-flash", false, false, false),
+    JUXA_GO("juxa_go", /*500000*/ 7003, "gemini-1.5-flash", false, false, false),
+    JUNIOR("esencial_junior", 1000000, "gemini-1.5-flash", false, false, true),
+    PRO("intermedio_pro", 2000000, "gemini-1.5-pro", true, false, true),
+    ELITE("premium_elite", -1, "gemini-1.5-pro", true, true, true); // -1 = Ilimitado (Uso justo)
 
     private final String dbName;
-    private final int maxQueriesPerDay;
-    private final int maxFilesPerDay;
+    private final int maxTokens; // Ahora el límite es por Tokens
     private final String aiModel;
     private final boolean canUploadAudio;
     private final boolean canUploadVideo;
     private final boolean hasFullHistory;
 
-    JuxaPlanDef(String dbName, int maxQueriesPerDay, int maxFilesPerDay, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory) {
+    JuxaPlanDef(String dbName, int maxTokens, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory) {
         this.dbName = dbName;
-        this.maxQueriesPerDay = maxQueriesPerDay;
-        this.maxFilesPerDay = maxFilesPerDay;
+        this.maxTokens = maxTokens;
         this.aiModel = aiModel;
         this.canUploadAudio = canUploadAudio;
         this.canUploadVideo = canUploadVideo;
