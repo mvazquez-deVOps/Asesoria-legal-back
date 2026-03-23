@@ -48,6 +48,8 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
         try {
+            String cleanEmail = registration.getEmail().trim().toLowerCase();
+            registration.setEmail(cleanEmail);
             // Ahora 'authService' ya no marcará error porque está declarado arriba
             AuthResponseDTO response = authService.register(registration);
             return ResponseEntity.ok(response);

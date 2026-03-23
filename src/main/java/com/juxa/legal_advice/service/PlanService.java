@@ -41,4 +41,15 @@ public class PlanService {
 
         }).collect(Collectors.toList());
     }
+
+    public String getStripePriceIdByPlanName(String planName) {
+        PlanEntity plan = planRepository.findByName(planName)
+                .orElseThrow(() -> new RuntimeException("Plan no encontrado en la BD: " + planName));
+        return plan.getStripePriceId();
+    }
+
+    public PlanEntity getPlanByName(String planName) {
+        return planRepository.findByName(planName)
+                .orElseThrow(() -> new RuntimeException("Plan no encontrado en la BD: " + planName));
+    }
 }

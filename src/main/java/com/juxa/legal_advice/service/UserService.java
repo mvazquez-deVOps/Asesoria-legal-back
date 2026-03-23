@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.config.JuxaPlanDef;
+import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.model.SubscriptionEntity;
@@ -10,6 +11,7 @@ import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,10 @@ import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 
 @Service
 @RequiredArgsConstructor
@@ -78,7 +84,7 @@ public class UserService {
         String planName = user.getSubscriptionPlan() != null ? user.getSubscriptionPlan() : "FREE";
 
         // ========================================================================
-        // NUEVA LÓGICA: Si es FREE (o BASIC), no buscamos en la tabla Subscriptions
+        // Si es FREE, no buscamos en la tabla Subscriptions
         // ========================================================================
         if ("FREE".equalsIgnoreCase(planName) || "BASIC".equalsIgnoreCase(planName)) {
             boolean isTrialActive = user.getTrialEndDate() != null && user.getTrialEndDate().isAfter(LocalDateTime.now());
@@ -186,5 +192,25 @@ public class UserService {
         userRepository.save(user); // Guardamos los cambios
     }
 
+    public UserEntity getCurrentAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
+        // Si no hay contexto o es un endpoint público (anónimo)
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new UnauthorizedUserException("No hay una sesión activa o el token es inválido.");
+        }
+
+        String email;
+        Object principal = authentication.getPrincipal();
+
+        // Dependiendo de cómo configuraste tu UserInfoDetails / JwtFilter
+        if (principal instanceof UserDetails) {
+            email = ((UserDetails) principal).getUsername();
+        } else {
+            email = principal.toString();
+        }
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario autenticado no encontrado en la base de datos."));
+    }
 }

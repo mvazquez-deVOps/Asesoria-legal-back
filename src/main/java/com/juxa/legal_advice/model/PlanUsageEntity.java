@@ -2,6 +2,7 @@ package com.juxa.legal_advice.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "plan_usage")
@@ -15,18 +16,35 @@ public class PlanUsageEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Relación 1 a 1 con el usuario: previene N+1 y bucles infinitos de memoria
+    // MapsId hace que el ID de esta entidad pueda ser el mismo que el del usuario
+    // si así lo prefieres, o simplemente mantiene la relación 1 a 1 limpia.
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     private UserEntity user;
 
     @Builder.Default
-    @Column(name = "daily_queries_count", nullable = false)
-    private Integer dailyQueriesCount = 0;
+    @Column(name = "queries_used_today")
+    private Integer queriesUsedToday = 0;
 
     @Builder.Default
-    @Column(name = "daily_files_count", nullable = false)
-    private Integer dailyFilesCount = 0;
+    @Column(name = "files_uploaded_today")
+    private Integer filesUploadedToday = 0;
+
+    @Column(name = "last_reset_date")
+    private LocalDate lastResetDate;
+
+    @Builder.Default
+    @Column(name = "tokens_used_today")
+    private Integer tokensUsedToday = 0;
+
+    @Builder.Default
+    @Column(name = "extra_tokens")
+    private Integer extraTokens = 0;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.lastResetDate == null) {
+            this.lastResetDate = LocalDate.now();
+        }
+    }
 }

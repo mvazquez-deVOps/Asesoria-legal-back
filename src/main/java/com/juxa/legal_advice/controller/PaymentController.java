@@ -4,14 +4,38 @@ import com.juxa.legal_advice.dto.PortalRequestDTO;
 import com.juxa.legal_advice.dto.PortalResponseDTO;
 import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
+import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.service.payment.PaymentService;
 import com.juxa.legal_advice.service.payment.StripeWebhookService; // Asegúrate de importar esto
+import com.stripe.param.CustomerCreateParams;
 import org.slf4j.Logger;///////////////////////////////////////////////////////////
 import org.slf4j.LoggerFactory;/////////////////////////////////////
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.juxa.legal_advice.model.UserEntity;
+import com.juxa.legal_advice.service.UserService;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.checkout.SessionCreateParams;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.juxa.legal_advice.model.UserEntity;
+import com.juxa.legal_advice.repository.UserRepository;
+import com.juxa.legal_advice.service.PlanService;
+import com.juxa.legal_advice.service.UserService;
+import com.stripe.model.Customer;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.CustomerCreateParams;
+import com.stripe.param.checkout.SessionCreateParams;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -23,10 +47,145 @@ public class PaymentController {
     @Autowired
     private StripeWebhookService stripeWebhookService;
 
+    private final UserService userService;
+    private final PlanService planService;
+    private final UserRepository userRepository;
+
+    public PaymentController(UserService userService, PlanService planService, UserRepository userRepository) {
+        this.userService = userService;
+        this.planService = planService;
+        this.userRepository = userRepository;
+    }
+
+    @PostMapping("/create-trial-checkout")
+    public ResponseEntity<?> createTrialCheckout() {
+        try {
+            UserEntity user = userService.getCurrentAuthenticatedUser();
+            String stripeCustomerId = user.getStripeCustomerId();
+            /// ////////////////////////////////////////
+            // BLOQUEO DE SEGURIDAD: Evitar que alguien que ya tiene un plan activo vuelva a pedir un Trial
+          /*  if (user.getSubscriptionPlan() != null || user.getSubscriptionPlan() != "FREE") {
+                return ResponseEntity.status(400).body(Map.of("error", "El usuario ya tiene un plan activo."));
+      } */ /// //////////////// DEBERIAMOS refactorizar que la  propiedad de subscripción no sea FREE automaticamente
+            // 1. CREACIÓN DE CLIENTE SEGURA
+            if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
+
+                String name = user.getName();
+
+                CustomerCreateParams customerParams = CustomerCreateParams.builder()
+                        .setEmail(user.getEmail())
+                        .setName(name)
+                        .build();
+
+                Customer customer = Customer.create(customerParams);
+                stripeCustomerId = customer.getId();
+
+                // Guardamos el nuevo ID en MySQL
+                user.setStripeCustomerId(stripeCustomerId);
+                userRepository.save(user);
+            }
+
+            // 2. EXTRAER PLAN DE LA BDd
+            // Nota: Escribe el nombre exactamente como está en la columna 'name' de tu tabla plans
+            PlanEntity plan = planService.getPlanByName("juxa_go");
+
+            // 3. CONSTRUIR SESIÓN CON METADATA PARA EL WEBHOOK
+            SessionCreateParams params = SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+                    .setCustomer(stripeCustomerId)
+                    .setSuccessUrl("https://tu-frontend.com/dashboard?session_id={CHECKOUT_SESSION_ID}")
+                    .setCancelUrl("https://tu-frontend.com/planes")
+                    // 👇 ESTO ES VITAL: El webhook lo necesita para saber a quién asignarle la compra
+                    .putMetadata("user_id", String.valueOf(user.getId()))
+                    .putMetadata("plan_id", String.valueOf(plan.getId()))
+                    .setSubscriptionData(SessionCreateParams.SubscriptionData.builder()
+                            .setTrialPeriodDays(7L) // La magia del Trial
+                            // 👇 También lo ponemos aquí por seguridad (Stripe lo propaga a la suscripción)
+                            .putMetadata("user_id", String.valueOf(user.getId()))
+                            .putMetadata("plan_id", String.valueOf(plan.getId()))
+                            .build())
+                    .addLineItem(SessionCreateParams.LineItem.builder()
+                            .setPrice(plan.getStripePriceId())
+                            .setQuantity(1L)
+                            .build())
+                    .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.ALWAYS) // Obliga a meter tarjeta
+                    .build();
+
+            Session session = Session.create(params);
+
+            return ResponseEntity.ok(Map.of("url", session.getUrl()));
+
+        } catch (Exception e) {
+            System.err.println("--- [ERROR CREANDO CHECKOUT] --- " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // 👇 AÑADIR ESTE ENDPOINT PARA LA COMPRA DE TOKENS
+    @PostMapping("/buy-extra-500-tokens")
+    public ResponseEntity<?> buyExtraTokens() {
+        log.error("sad");
+        try {
+            UserEntity user = userService.getCurrentAuthenticatedUser();
+            String stripeCustomerId = user.getStripeCustomerId();
+
+            // 1. Si no tiene Customer ID en Stripe, lo creamos
+            if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
+                String safeName = (user.getName() != null && !user.getName().trim().isEmpty())
+                        ? user.getName()
+                        : "Usuario JUXA";
+
+                CustomerCreateParams customerParams = CustomerCreateParams.builder()
+                        .setEmail(user.getEmail())
+                        .setName(safeName)
+                        .build();
+
+                Customer customer = Customer.create(customerParams);
+                stripeCustomerId = customer.getId();
+
+                user.setStripeCustomerId(stripeCustomerId);
+                userRepository.save(user);
+            }
+
+            // 2. Extraer el precio del paquete de tokens desde la BD
+            // Asumiendo que guardaste el plan con el nombre 'tokens_500'
+            PlanEntity tokenPack = planService.getPlanByName("tokens_500");
+
+            // Definimos la cantidad que otorga este paquete (para que el webhook sepa cuánto sumar)
+            String tokensToAdd = "500";
+
+            // 3. Crear la sesión de Checkout (Modo PAYMENT)
+            SessionCreateParams params = SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.PAYMENT) // Importante: Es un pago único, no suscripción
+                    .setCustomer(stripeCustomerId)
+                    .setSuccessUrl("https://tu-frontend.com/dashboard?payment=success")
+                    .setCancelUrl("https://tu-frontend.com/planes")
+                    // METADATA VITAL PARA EL WEBHOOK
+                    .putMetadata("payment_type", "extra_tokens")
+                    .putMetadata("user_id", String.valueOf(user.getId()))
+                    .putMetadata("token_amount", tokensToAdd)
+                    .addLineItem(SessionCreateParams.LineItem.builder()
+                            .setPrice(tokenPack.getStripePriceId())
+                            .setQuantity(1L)
+                            .build())
+                    .build();
+
+            Session session = Session.create(params);
+
+            return ResponseEntity.ok(Map.of("url", session.getUrl()));
+
+        } catch (Exception e) {
+            log.error("Error creando checkout de tokens: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+        }
+    }
     @PostMapping("/checkout")
     public ResponseEntity<PaymentResponseDTO> createCheckout(@RequestBody PaymentRequestDTO request){
         return ResponseEntity.ok(paymentService.createCheckout(request));
     }
+
+
 
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeWebhook(
