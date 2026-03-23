@@ -51,7 +51,7 @@ public class AiController {
 
     @PostMapping("/generate-initial-diagnosis")
     public ResponseEntity<Map<String, Object>> startDiagnosis(@RequestBody UserDataDTO userData) {
-        UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+      //  UserEntity currentUser = userService.getCurrentAuthenticatedUser();
        // usageAuthService.authorizeAndConsumeQuery(currentUser);
 
         Map<String, Object> response = geminiService.generateInitialChatResponse(userData);
