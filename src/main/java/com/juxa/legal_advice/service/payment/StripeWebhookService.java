@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -39,9 +40,14 @@ public class StripeWebhookService {
     private UserRepository userRepository;
     @Autowired
     private PlanRepository planRepository;
+    @Autowired // <-- Faltaba inyectar esto
+    private PlanUsageRepository planUsageRepository;
+
 
     public String handleWebhook(String payload, String sigHeader) {
         Event event;
+
+
 
         try {
             event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
@@ -74,9 +80,30 @@ public class StripeWebhookService {
             switch (event.getType()) {
                 case "checkout.session.completed":
                     log.info("🚀 Procesando checkout.session.completed...");
-                    handleCheckoutSessionCompleted((Session) stripeObject);
-                    return "Suscripción inicial guardada";
+                    Session session = (Session) stripeObject;
 
+                    // ========================================================
+                    // NUEVA LÓGICA: ¿Qué compró el usuario?
+                    // ========================================================
+                    Map<String, String> metadata = session.getMetadata();
+
+                    if (session.getPaymentStatus().equals("paid")) {
+                        // Verificamos si la metadata dice que es una compra de tokens
+                        if (metadata != null && "extra_tokens".equals(metadata.get("payment_type"))) {
+                            log.info("🪙 Detectada compra de tokens extra. Procesando...");
+                            handleExtraTokensPurchase(metadata);
+                            return "Compra de tokens procesada exitosamente";
+                        }
+                        // Si no es compra de tokens, asumimos que es una suscripción normal
+                        else {
+                            log.info("📅 Detectada compra de suscripción/trial. Procesando...");
+                            handleCheckoutSessionCompleted(session);
+                            return "Suscripción inicial guardada";
+                        }
+                    } else {
+                        log.warn("⚠️ Checkout completado pero el pago no está 'paid'. Status: {}", session.getPaymentStatus());
+                        return "Checkout completado sin pago";
+                    }
                 case "invoice.paid":
                     log.info("💰 Procesando invoice.paid...");
                     handleInvoicePayment((Invoice) stripeObject, true);
@@ -372,4 +399,50 @@ public class StripeWebhookService {
         }
     }
     // ====================================================================
+
+    // =================================================================
+    // MÉTODO PARA SUMAR LOS TOKENS A LA BASE DE DATOS
+    // =================================================================
+    private void handleExtraTokensPurchase(Map<String, String> metadata) {
+        String userIdStr = metadata.get("user_id");
+        String tokenAmountStr = metadata.get("token_amount");
+
+        if (userIdStr == null || tokenAmountStr == null) {
+            log.error("❌ GRAVE: Faltan datos en la metadata para sumar los tokens. user_id={}, token_amount={}", userIdStr, tokenAmountStr);
+            throw new RuntimeException("Metadata inválida para compra de tokens");
+        }
+
+        Long userId = Long.parseLong(userIdStr);
+        int tokensToAdd = Integer.parseInt(tokenAmountStr);
+
+        log.info("🔍 Buscando uso de plan para el usuario con ID {}...", userId);
+
+        // 1. Buscamos al usuario para poder relacionarlo con el nuevo registro si es necesario
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + userId));
+
+        // 2. Buscamos el registro de uso del plan. Si NO existe, lo creamos nuevo.
+        PlanUsageEntity usage = planUsageRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    log.info("⚠️ No se encontró registro previo de PlanUsage para el usuario {}. Creando uno nuevo...", userId);
+                    PlanUsageEntity newUsage = new PlanUsageEntity();
+                    newUsage.setUser(user); // Asignamos la relación con el usuario
+                    newUsage.setQueriesUsedToday(0);
+                    newUsage.setFilesUploadedToday(0);
+                    newUsage.setExtraTokens(0);
+                    // Setear otras propiedades por defecto si tu entidad las requiere
+                    return newUsage;
+                });
+
+        // 3. Sumamos los tokens (manejando posibles nulos de registros antiguos)
+        int currentTokens = usage.getExtraTokens() != null ? usage.getExtraTokens() : 0;
+        usage.setExtraTokens(currentTokens + tokensToAdd);
+
+        // 4. Guardamos (hará UPDATE si existía, o INSERT si es nuevo)
+        planUsageRepository.save(usage);
+
+        log.info("🎉 ¡ÉXITO! Se sumaron {} tokens al usuario {}. Total actual extra_tokens: {}", tokensToAdd, userId, usage.getExtraTokens());
+    }
 }
+
+

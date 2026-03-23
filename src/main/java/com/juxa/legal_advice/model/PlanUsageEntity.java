@@ -33,6 +33,14 @@ public class PlanUsageEntity {
     @Column(name = "last_reset_date")
     private LocalDate lastResetDate;
 
+    @Builder.Default
+    @Column(name = "tokens_used_today")
+    private Integer tokensUsedToday = 0;
+
+    @Builder.Default
+    @Column(name = "extra_tokens")
+    private Integer extraTokens = 0;
+
     @PrePersist
     protected void onCreate() {
         if (this.lastResetDate == null) {
