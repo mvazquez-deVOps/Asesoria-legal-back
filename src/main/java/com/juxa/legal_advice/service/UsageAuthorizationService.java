@@ -134,4 +134,37 @@ public class UsageAuthorizationService {
     public PlanUsageEntity getUsageStats(UserEntity user) {
         return getAndResetUsageIfNeeded(user);
     }
+
+    // Añadir a UsageAuthorizationService.java
+
+    public int getAvailableOcrPages(UserEntity user) {
+        PlanUsageEntity usage = getAndResetUsageIfNeeded(user);
+        JuxaPlanDef planDef = JuxaPlanDef.fromString(user.getSubscriptionPlan());
+
+        int limit = planDef.getMaxOcrPages();
+
+        // Si el plan es ilimitado (-1), devolvemos el valor máximo de un Integer para que nunca falle la validación
+        if (limit == -1) {
+            return Integer.MAX_VALUE;
+        }
+
+        int used = usage.getFilesUploadedToday() != null ? usage.getFilesUploadedToday() : 0;
+        return Math.max(0, limit - used);
+    }
+
+    @Transactional
+
+    public void consumeOcrPages(UserEntity user, int pagesUsed) {
+        if (pagesUsed <= 0) return; // Si fue gratis (Word o PDF digital), no hacemos nada
+
+        JuxaPlanDef planDef = JuxaPlanDef.fromString(user.getSubscriptionPlan());
+        if (planDef.getMaxOcrPages() == -1) return; // Si es ilimitado, no gastamos tiempo guardando el uso
+
+        PlanUsageEntity usage = getAndResetUsageIfNeeded(user);
+        int current = usage.getFilesUploadedToday() != null ? usage.getFilesUploadedToday() : 0;
+        usage.setFilesUploadedToday(current + pagesUsed);
+
+        planUsageRepository.save(usage);
+    }
 }
+
