@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+
         return new BCryptPasswordEncoder();
     }
 
@@ -67,15 +68,16 @@ public class SecurityConfig {
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll  ()
                         // Añade el comodín para cubrir todos los endpoints de IA
                         .requestMatchers("/api/ai/**").permitAll()
-                        .requestMatchers("/api/v1/formats/**").authenticated()
+                        .requestMatchers("/api/v1/formats/**").permitAll()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/pdf/**").authenticated()
                         .requestMatchers("/api/denuncias/**").authenticated()
+
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
@@ -96,7 +98,9 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "https://asesorialegal-abogados-284685729356.us-central1.run.app",
                 "https://asesoriajuridica.tech",
-                "https://techlegal.io"
+                "https://techlegal.io",
+                "https://asesorialegal-front-test-284685729356.us-central1.run.app",
+                "https://juxa.io"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios
