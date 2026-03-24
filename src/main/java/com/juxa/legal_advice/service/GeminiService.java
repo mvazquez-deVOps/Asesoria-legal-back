@@ -27,6 +27,17 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 
+// imports para convertir .doc a html
+import org.apache.poi.hwpf.converter.WordToHtmlConverter;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.StringWriter;
+
 // 3. SPRING Y LOMBOK
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -420,9 +431,25 @@ public class GeminiService {
                     return new XWPFWordExtractor(docx).getText();
                 }
             } else if (filename != null && filename.toLowerCase().endsWith(".doc")) {
+                // Convertir el binario .doc a HTML estructurado
                 try (HWPFDocument doc = new HWPFDocument(file.getInputStream())) {
-                    WordExtractor extractor = new WordExtractor(doc);
-                    return extractor.getText();
+                    WordToHtmlConverter wordToHtmlConverter = new WordToHtmlConverter(
+                            DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
+                    );
+
+                    // Procesa el documento y genera un árbol DOM (HTML)
+                    wordToHtmlConverter.processDocument(doc);
+                    Document htmlDocument = wordToHtmlConverter.getDocument();
+
+                    // Transforma el árbol DOM a un String de texto HTML
+                    StringWriter stringWriter = new StringWriter();
+                    Transformer transformer = TransformerFactory.newInstance().newTransformer();
+                    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+                    transformer.setOutputProperty(OutputKeys.ENCODING, "utf-8");
+                    transformer.setOutputProperty(OutputKeys.METHOD, "html");
+                    transformer.transform(new DOMSource(htmlDocument), new StreamResult(stringWriter));
+
+                    return stringWriter.toString(); // Esto ahora devuelve HTML con <p>, <b>, etc.
                 }
             }
 
