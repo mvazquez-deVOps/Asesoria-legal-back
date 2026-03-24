@@ -12,8 +12,9 @@ public class PlanResponseDTO {
     private String stripePriceId;
 
     // Datos que vienen del Enum (Características)
-    private int maxQueriesPerDay;
-    private int maxFilesPerDay;
+    private int maxTokens; // <--- CAMBIO AQUÍ (La nueva moneda de cambio)
     private String aiModel;
     private boolean canUploadAudio;
+    private boolean canUploadVideo;
+    private boolean hasFullHistory;
 }

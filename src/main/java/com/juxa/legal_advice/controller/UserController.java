@@ -28,8 +28,6 @@ public class UserController {
 
 
         String email = principal.getName();
-        UserEntity currentUser = userService.getCurrentAuthenticatedUser();
-        usageAuthService.authorizeAndConsumeQuery(currentUser);
 
         UserSubscriptionResponseDTO response = userService.getMySubscriptionStatus(email);
 

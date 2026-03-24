@@ -5,12 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
+import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
+import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
-import com.juxa.legal_advice.service.AiBucketService;
-import com.juxa.legal_advice.service.GeminiClient;
-import com.juxa.legal_advice.service.GeminiService;
+import com.juxa.legal_advice.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;///////////////////////////////////////////////////////////
+import org.slf4j.LoggerFactory;/////////////////////////////////////
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
@@ -36,63 +38,64 @@ public class AiController {
     private final AiBucketService aiBucketService;
     private final GeminiClient geminiClient;
 
+    @Autowired
+    private  UsageAuthorizationService usageAuthService;
+    @Autowired
+    private  UserService userService;
+    private static final Logger log = LoggerFactory.getLogger(AiController.class); ////////////////
+
+
     @Autowired(required = false)
     private Storage storage;
 
     @PostMapping("/generate-initial-diagnosis")
     public ResponseEntity<Map<String, Object>> startDiagnosis(@RequestBody UserDataDTO userData) {
-        Map<String, Object> response = geminiService.generateInitialChatResponse(userData);
-        return ResponseEntity.ok(response);
+        try {
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            // 1. Validar peaje de entrada (estimamos un texto base para el prompt de diagnóstico)
+            String textoEstimado = "A".repeat(1000); // Equivale a unos 250 tokens base
+            usageAuthService.validateSufficientTokens(currentUser, "Diagnóstico inicial", textoEstimado, null);
+
+            // 2. Ejecutar la llamada a la IA
+            Map<String, Object> response = geminiService.generateInitialChatResponse(userData);
+
+            // 3. Descontar tokens reales
+            if (response.containsKey("_usageMetadata")) {
+                Map<String, Integer> metadata = (Map<String, Integer>) response.get("_usageMetadata");
+                int totalTokensGastados = metadata.getOrDefault("totalTokens", 0);
+                usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (PlanLimitExceededException | UnauthorizedUserException e) {
+            throw e; // Dejamos que el manejador global de excepciones lo atrape
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> chat(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam("message") String currentMessage,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam("userData") String userDataJson,
             @RequestParam("history") String historyJson) {
         try {
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            // 1. Extraemos datos del JSON
             Map<String, Object> userDataMap = objectMapper.readValue(userDataJson,
                     new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
             List<Map<String, Object>> historyList = objectMapper.readValue(historyJson,
                     new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
 
-            String email = (String) userDataMap.get("email");
-            UserEntity user = null;
-
-            if (email != null && !email.isEmpty()) {
-                user = userRepository.findByEmail(email).orElse(null);
-            }
-
-            if (user == null) {
-                return ResponseEntity.status(401).body(Map.of(
-                        "error", "Acceso denegado",
-                        "message", "Debes estar registrado e iniciar sesión para usar el chat de JUXA."
-                ));
-            }
-
-            boolean esPremium = "PREMIUM".equals(user.getSubscriptionPlan());
-            boolean esProof = user.getTrialEndDate() != null && LocalDateTime.now().isBefore(user.getTrialEndDate());
-
-            if (!esPremium && !esProof) {
-                if (user.getLastMessageDate() == null || !user.getLastMessageDate().equals(LocalDate.now())) {
-                    user.setDailyMessageCount(0);
-                    user.setLastMessageDate(LocalDate.now());
-                }
-                if (user.getDailyMessageCount() >= 10) {
-                    return ResponseEntity.status(429).body(Map.of(
-                            "error", "Límite diario alcanzado",
-                            "message", "Has agotado tus 10 interacciones gratuitas de hoy."
-                    ));
-                }
-                user.setDailyMessageCount(user.getDailyMessageCount() + 1);
-                userRepository.save(user);
-            }
-
-            // LECTURA NATIVA (SIN OCR PARA PDFS)
+// 2. LECTURA NATIVA O EXTRACCIÓN (Para saber de qué tamaño es el monstruo)
             String fileBase64 = null;
             String mimeType = null;
-            String textoOcr = ""; // Solo se usará si suben un archivo Word (.docx)
+            String textoOcr = "";
 
             if (file != null && !file.isEmpty()) {
                 String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
@@ -102,13 +105,19 @@ public class AiController {
                     if (mimeType == null || mimeType.contains("octet-stream")) {
                         mimeType = filename.endsWith(".pdf") ? "application/pdf" : "image/jpeg";
                     }
+                    // Asignamos peso para estimación de análisis visual
+                    textoOcr = "A".repeat(12000);
                 } else {
-                    // Si es Word, seguimos usando el extractor de texto normal
-                    textoOcr = geminiService.extractTextFromFile(file);
+                    // AQUÍ ESTÁ EL CAMBIO PARA LOS DOCUMENTOS DE TEXTO (DOC, DOCX)
+                 //   int availablePages = usageAuthService.getAvailableOcrPages(currentUser);
+                    textoOcr  = geminiService.extractTextFromFile(file);
                 }
             }
 
-            // Extraemos las reglas de JUXA de forma separada
+            // 3. PEAJE DE ENTRADA (La nueva validación heurística estilo ChatGPT)
+            usageAuthService.validateSufficientTokens(currentUser, currentMessage, textoOcr, historyJson);
+
+            // 4. PREPARACIÓN DEL PAYLOAD
             String directrices = aiBucketService.readTextFile("Hoja_deRita.csv");
             String contextoCarpetas = generarContextoBucket();
 
@@ -116,38 +125,71 @@ public class AiController {
             payload.put("message", currentMessage);
             payload.put("userData", userDataMap);
             payload.put("history", historyList);
-
-            // Pasamos las variables completamente separadas para que la IA no se confunda
             payload.put("hojaRuta", directrices);
             payload.put("estructuraCarpetas", contextoCarpetas);
-            payload.put("textoOcr", textoOcr);
+            payload.put("textoOcr", textoOcr.startsWith("A".repeat(100)) ? "" : textoOcr); // Limpiamos el texto falso
             payload.put("fileBase64", fileBase64);
             payload.put("mimeType", mimeType);
 
+            // 5. LLAMADA REAL A LA IA
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
+
+            // 6. DEDUCCIÓN EXACTA DE TOKENS (Post-respuesta)
+            if (aiResponse.containsKey("_usageMetadata")) {
+                Map<String, Integer> metadata = (Map<String, Integer>) aiResponse.get("_usageMetadata");
+                int totalTokensGastados = metadata.getOrDefault("totalTokens", 0);
+                usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+            }
+
             return ResponseEntity.ok(aiResponse);
 
+        } catch (PlanLimitExceededException | UnauthorizedUserException e) {
+            throw e;
         } catch (Exception e) {
             System.err.println("--- [ERROR CONTROLLER] --- " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
+
     @PostMapping("/architect")
     public ResponseEntity<Map<String, Object>> generateArchitectPrompt(@RequestBody Map<String, String> payload) {
         try {
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
             String intention = payload.get("intention");
+
+            // 1. Validar peaje de entrada
+            usageAuthService.validateSufficientTokens(currentUser, intention, null, null);
+
+            // 2. Ejecutar la llamada a la IA
             Map<String, Object> response = geminiService.processArchitectIntention(intention);
+
+            // 3. Descontar tokens reales
+            if (response.containsKey("_usageMetadata")) {
+                Map<String, Integer> metadata = (Map<String, Integer>) response.get("_usageMetadata");
+                int totalTokensGastados = metadata.getOrDefault("totalTokens", 0);
+                usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+            }
+
             return ResponseEntity.ok(response);
+
+        } catch (PlanLimitExceededException | UnauthorizedUserException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
+
     @PostMapping("/proxy-generate")
-    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String>
-                                                                               payload) {
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String> payload) {
         try {
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
             String prompt = payload.get("prompt");
+
+            // 1. Validar peaje de entrada
+            usageAuthService.validateSufficientTokens(currentUser, prompt, null, null);
+
+            // 2. Ejecutar la llamada a la IA
             String aiResponse = geminiClient.callGemini(prompt);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(aiResponse);
@@ -160,14 +202,23 @@ public class AiController {
                     .path("text")
                     .asText();
 
+            // 3. Descontar tokens extrayendo la información directamente del nodo raíz de Google
+            JsonNode usageNode = rootNode.path("usageMetadata");
+            if (!usageNode.isMissingNode()) {
+                int totalTokensGastados = usageNode.path("totalTokenCount").asInt(0);
+                usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+            }
+
             Map<String, Object> response = new HashMap<>();
             response.put("rawResponse", cleanText);
             return ResponseEntity.ok(response);
+
+        } catch (PlanLimitExceededException | UnauthorizedUserException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
 
     private String generarContextoBucket() {
         Map<String, String> carpetaContexto = Map.of(
@@ -194,6 +245,8 @@ public class AiController {
         } catch (Exception e) {}
         return contexto.toString();
     }
+
+// En AiController.java
 
     //Metodo para abrir pdfs en JUXA docs
     @PostMapping(value = "/extract-text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

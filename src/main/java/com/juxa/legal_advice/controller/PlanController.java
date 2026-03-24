@@ -10,14 +10,11 @@ import com.juxa.legal_advice.service.UsageAuthorizationService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/plans")
@@ -28,15 +25,11 @@ public class PlanController {
     private final UserService userService;
     private final UsageAuthorizationService usageAuthService;
 
-
-    // Puedes hacer que este endpoint sea público en tu SecurityConfig (.permitAll())
-    // para que los usuarios no logueados puedan ver los precios.
     @GetMapping
     public ResponseEntity<List<PlanResponseDTO>> getAvailablePlans() {
         List<PlanResponseDTO> plans = planService.getAllPlans();
         return ResponseEntity.ok(plans);
     }
-
 
     @GetMapping("/me/usage")
     public ResponseEntity<UsageResponseDTO> getUserUsage() {
@@ -45,19 +38,33 @@ public class PlanController {
 
         PlanUsageEntity usage = usageAuthService.getUsageStats(currentUser);
 
-        // Cálculos de límites
-        boolean canQuery = planDef.getMaxQueriesPerDay() == -1 || usage.getQueriesUsedToday() < planDef.getMaxQueriesPerDay();
-        boolean canUpload = planDef.getMaxFilesPerDay() == -1 || usage.getFilesUploadedToday() < planDef.getMaxFilesPerDay();
+        // 1. Cálculos de Tokens
+        int tokensUsados = usage.getTokensUsedToday() != null ? usage.getTokensUsedToday() : 0;
+        int tokensExtra = usage.getExtraTokens() != null ? usage.getExtraTokens() : 0;
+        int limiteTokens = planDef.getMaxTokens();
 
+        int totalTokensDisponibles = limiteTokens + tokensExtra;
+
+        // 2. Validación de estado (-1 significa ilimitado)
+        boolean isUnlimited = (limiteTokens == -1);
+        boolean canQuery = isUnlimited || (tokensUsados < totalTokensDisponibles);
+
+        // 3. Construcción de la respuesta
         UsageResponseDTO response = UsageResponseDTO.builder()
                 .planName(planDef.getDbName())
-                .queriesUsed(usage.getQueriesUsedToday())
-                .queriesLimit(planDef.getMaxQueriesPerDay())
-                .filesUsed(usage.getFilesUploadedToday())
-                .filesLimit(planDef.getMaxFilesPerDay())
-                .aiModel(planDef.getAiModel())
+
+                // Nuevos datos de Tokens
+                .tokensUsed(tokensUsados)
+                .tokensLimit(limiteTokens)
+                .extraTokens(tokensExtra)
                 .canMakeMoreQueries(canQuery)
-                .canUploadMoreFiles(canUpload)
+
+                // Datos estadísticos (ya no bloquean, solo informan)
+                .queriesUsed(usage.getQueriesUsedToday() != null ? usage.getQueriesUsedToday() : 0)
+                .filesUsed(usage.getFilesUploadedToday() != null ? usage.getFilesUploadedToday() : 0)
+
+                // Capacidades del modelo
+                .aiModel(planDef.getAiModel())
                 .canUploadAudio(planDef.isCanUploadAudio())
                 .canUploadVideo(planDef.isCanUploadVideo())
                 .hasFullHistory(planDef.isHasFullHistory())

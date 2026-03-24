@@ -13,6 +13,7 @@ import com.google.cloud.vision.v1.Image; // Esta es la que usaremos como priorit
 import com.google.cloud.vision.v1.ImageAnnotatorClient;
 import com.google.protobuf.ByteString;
 
+import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.DiagnosisEntity;
 import com.juxa.legal_advice.util.PromptBuilder;
@@ -246,14 +247,31 @@ public class GeminiService {
         return extractTextFromResponse(fullResponse);
     }
 
-    // Nuevo extractor estructurado: diagnosis + suggestions
+    // Nuevo extractor estructurado: diagnosis + suggestions + usage metadata
     private Map<String, Object> extractStructuredResponse(String response) {
         try {
             // 1. Navegación en el árbol de respuesta de Google
             JsonNode root = objectMapper.readTree(response);
+
+            // 1.1 Extraer el texto principal
             String rawText = root.path("candidates").get(0)
                     .path("content").path("parts")
                     .get(0).path("text").asText();
+
+            // 1.2 Extraer los tokens de uso de forma segura (NUEVO)
+            Map<String, Integer> usageStats = new HashMap<>();
+            JsonNode usageNode = root.path("usageMetadata");
+            if (!usageNode.isMissingNode()) {
+                usageStats.put("inputTokens", usageNode.path("promptTokenCount").asInt(0));
+                usageStats.put("cachedTokens", usageNode.path("cachedContentTokenCount").asInt(0));
+                usageStats.put("outputTokens", usageNode.path("candidatesTokenCount").asInt(0));
+                usageStats.put("totalTokens", usageNode.path("totalTokenCount").asInt(0));
+            } else {
+                usageStats.put("inputTokens", 0);
+                usageStats.put("cachedTokens", 0);
+                usageStats.put("outputTokens", 0);
+                usageStats.put("totalTokens", 0);
+            }
 
             // --- CAPA DE SEGURIDAD: EL INTERCEPTOR ---
             // Si el texto contiene tus secretos, cortamos la comunicación de inmediato.
@@ -287,7 +305,7 @@ public class GeminiService {
                 result.put("text", result.get("diagnosis"));
             }
 
-            // 5. Garantía de campos
+            // 5. Garantía de campos (Sugerencias)
             if (!result.containsKey("suggestions") || ((List<?>) result.get("suggestions")).isEmpty()) {
                 result.put("suggestions", new java.util.ArrayList<>(List.of(
                         Map.of(
@@ -314,7 +332,7 @@ public class GeminiService {
                 }
             }
 
-            // PROMPTS ESTRATÉGICOS (La lógica recuperada para tu estado suggestedPrompts)
+            // 6. PROMPTS ESTRATÉGICOS
             if (!result.containsKey("suggestedPrompts") || ((List<?>) result.get("suggestedPrompts")).isEmpty()) {
                 result.put("suggestedPrompts", new java.util.ArrayList<>(List.of(
                         "¿Cuáles son los siguientes pasos legales?",
@@ -324,6 +342,9 @@ public class GeminiService {
             }
 
             result.putIfAbsent("downloadPdf", false);
+
+            // 7. INYECTAR LAS ESTADÍSTICAS DE USO EN LA RESPUESTA FINAL (NUEVO)
+            result.put("_usageMetadata", usageStats);
 
             return result;
 
@@ -363,7 +384,6 @@ public class GeminiService {
                 ? message.trim()
                 : "Continuar con el análisis legal basado en los hechos anteriores.";
     }
-
 
     public String extractTextFromFile(MultipartFile file) {
         String filename = file.getOriginalFilename();
@@ -432,6 +452,93 @@ public class GeminiService {
         return "";
     }
 
+    // se suponía que ibamos a tener un limite de cuantas hojas se iban a escanear dependiendo de la suscripción,
+    // pero se abandonó la idea
+    public Map<String, Object> extractTextFromFile(MultipartFile file, int maxAllowedPages) {
+        String filename = file.getOriginalFilename();
+        StringBuilder extractedText = new StringBuilder();
+        Map<String, Object> result = new HashMap<>();
+        result.put("ocrPagesUsed", 0); // Por defecto es gratis
+
+        try {
+            if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
+                byte[] fileBytes = file.getBytes();
+                try (PDDocument document = PDDocument.load(fileBytes)) {
+
+                    // 1. INTENTO DIGITAL (Rápido y económico)
+                    PDFTextStripper stripper = new PDFTextStripper();
+                    String digitalText = stripper.getText(document);
+
+                    // Si detectamos texto real (más de 500 caracteres), lo usamos (GRATIS)
+                    if (digitalText != null && digitalText.trim().length() > 500) {
+                        result.put("text", digitalText.trim());
+                        return result;
+                    }
+
+                    // 2. RESPALDO OCR (Para escaneos/imágenes)
+                    System.out.println("--- PDF SIN TEXTO DETECTADO. INICIANDO GOOGLE VISION OCR ---");
+
+                    // Calculamos cuántas páginas reales vamos a escanear
+                    int maxPagesToProcess = Math.min(document.getNumberOfPages(), 50);
+
+                    // VALIDACIÓN DE PEAJE: Si requiere más páginas de las que tiene, lanzamos excepción
+                    if (maxPagesToProcess > maxAllowedPages) {
+                        throw new PlanLimitExceededException("El documento requiere escanear " + maxPagesToProcess +
+                                " páginas mediante OCR, pero tu saldo de hoy es de " + maxAllowedPages + " páginas.");
+                    }
+
+                    PDFRenderer renderer = new PDFRenderer(document);
+
+                    try (ImageAnnotatorClient vision = ImageAnnotatorClient.create()) {
+                        for (int i = 0; i < maxPagesToProcess; i++) {
+                            BufferedImage image = renderer.renderImageWithDPI(i, 300);
+                            ByteArrayOutputStream os = new ByteArrayOutputStream();
+                            ImageIO.write(image, "png", os);
+
+                            ByteString imgBytes = ByteString.copyFrom(os.toByteArray());
+                            com.google.cloud.vision.v1.Image img = com.google.cloud.vision.v1.Image.newBuilder()
+                                    .setContent(imgBytes)
+                                    .build();
+                            Feature feat = Feature.newBuilder().setType(Feature.Type.DOCUMENT_TEXT_DETECTION).build();
+
+                            AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
+                                    .addFeatures(feat)
+                                    .setImage(img)
+                                    .build();
+
+                            BatchAnnotateImagesResponse response = vision.batchAnnotateImages(List.of(request));
+                            for (AnnotateImageResponse res : response.getResponsesList()) {
+                                if (res.hasError()) continue;
+                                extractedText.append(res.getFullTextAnnotation().getText()).append("\n");
+                            }
+                        }
+                    }
+                    result.put("text", extractedText.toString().trim());
+                    result.put("ocrPagesUsed", maxPagesToProcess); // Registramos el consumo
+                    return result;
+                }
+            } else if (filename != null && filename.toLowerCase().endsWith(".docx")) {
+                try (XWPFDocument docx = new XWPFDocument(file.getInputStream())) {
+                    result.put("text", new XWPFWordExtractor(docx).getText());
+                    return result;
+                }
+            } else if (filename != null && filename.toLowerCase().endsWith(".doc")) {
+                try (HWPFDocument doc = new HWPFDocument(file.getInputStream())) {
+                    WordExtractor extractor = new WordExtractor(doc);
+                    result.put("text", extractor.getText());
+                    return result;
+                }
+            }
+
+        } catch (PlanLimitExceededException e) {
+            throw e; // Dejamos pasar la excepción de límite
+        } catch (Exception e) {
+            System.err.println("Error crítico en extracción (OCR): " + e.getMessage());
+        }
+
+        result.put("text", "");
+        return result;
+    }
     /**
      * Extrae y castea la lista del historial de chat de forma segura
      * para evitar ClassCastException.
@@ -477,6 +584,15 @@ public class GeminiService {
                     .path("content").path("parts")
                     .get(0).path("text").asText();
 
+            // NUEVO: Extraer metadatos de uso antes de limpiar el texto
+            Map<String, Integer> usageStats = new HashMap<>();
+            JsonNode usageNode = root.path("usageMetadata");
+            if (!usageNode.isMissingNode()) {
+                usageStats.put("totalTokens", usageNode.path("totalTokenCount").asInt(0));
+            } else {
+                usageStats.put("totalTokens", 0);
+            }
+
             String cleanJson = rawText.trim();
             if (cleanJson.startsWith("```json")) {
                 cleanJson = cleanJson.substring(7);
@@ -486,9 +602,14 @@ public class GeminiService {
             }
             cleanJson = cleanJson.trim();
 
-            return objectMapper.readValue(cleanJson,
+            Map<String, Object> result = objectMapper.readValue(cleanJson,
                     new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
                     });
+
+            // NUEVO: Inyectar los metadatos de uso en el mapa resultante
+            result.put("_usageMetadata", usageStats);
+
+            return result;
 
         } catch (Exception e) {
             System.err.println("--- [ERROR PROMPT ARCHITECT] ---: " + e.getMessage());
