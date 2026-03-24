@@ -1,6 +1,8 @@
 package com.juxa.legal_advice.config;
 
 import com.juxa.legal_advice.security.JwtFilter;
+import com.juxa.legal_advice.security.RateLimitFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,14 +23,21 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+
+
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+
+    private final RateLimitFilter rateLimitFilter;
+
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtFilter jwtFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtFilter jwtFilter, RateLimitFilter rateLimitFilter, UserDetailsService userDetailsService) {
+        this.rateLimitFilter = rateLimitFilter;
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
@@ -78,6 +87,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/denuncias/**").authenticated()
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
