@@ -65,6 +65,8 @@ dependencies {
 	implementation 'org.springframework.retry:spring-retry'
 	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	implementation 'com.google.auth:google-auth-library-oauth2-http:1.23.0'
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+	implementation 'com.bucket4j:bucket4j-core:8.10.0'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
