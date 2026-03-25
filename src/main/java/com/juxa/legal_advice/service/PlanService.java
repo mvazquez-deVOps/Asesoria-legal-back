@@ -32,11 +32,12 @@ public class PlanService {
                     .name(plan.getName())
                     .stripePriceId(plan.getStripePriceId())
 
-                    // Del Enum
-                    .maxQueriesPerDay(planDef.getMaxQueriesPerDay())
-                    .maxFilesPerDay(planDef.getMaxFilesPerDay())
+                    // Del Enum actualizado
+                    .maxTokens(planDef.getMaxTokens()) // <--- Ahora extraemos los tokens
                     .aiModel(planDef.getAiModel())
                     .canUploadAudio(planDef.isCanUploadAudio())
+                    .canUploadVideo(planDef.isCanUploadVideo())
+                    .hasFullHistory(planDef.isHasFullHistory())
                     .build();
 
         }).collect(Collectors.toList());

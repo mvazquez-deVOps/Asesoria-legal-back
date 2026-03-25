@@ -87,7 +87,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/denuncias/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
@@ -107,6 +106,8 @@ public class SecurityConfig {
                 "https://asesorialegal-abogados-284685729356.us-central1.run.app",
                 "https://asesoriajuridica.tech",
                 "https://techlegal.io",
+                "https://asesorialegal-front-test-284685729356.us-central1.run.app",
+                "https://juxa.io",
                 "https://asesorialegal-front-test-284685729356.us-central1.run.app"
         ));
 
