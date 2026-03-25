@@ -202,15 +202,28 @@ public class AiController {
                     .path("text")
                     .asText();
 
-            // 3. Descontar tokens extrayendo la información directamente del nodo raíz de Google
+            // 3. Descontar tokens extrayendo la información y prepararla para el Frontend
+            Map<String, Integer> usageStats = new HashMap<>();
             JsonNode usageNode = rootNode.path("usageMetadata");
+
             if (!usageNode.isMissingNode()) {
                 int totalTokensGastados = usageNode.path("totalTokenCount").asInt(0);
                 usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+
+                // Armamos el reporte detallado para el JSON de respuesta
+                usageStats.put("inputTokens", usageNode.path("promptTokenCount").asInt(0));
+                usageStats.put("outputTokens", usageNode.path("candidatesTokenCount").asInt(0));
+                usageStats.put("cachedTokens", usageNode.path("cachedContentTokenCount").asInt(0));
+                usageStats.put("totalTokens", totalTokensGastados);
+            } else {
+                usageStats.put("totalTokens", 0);
             }
 
+            // 4. Construir la respuesta enviando el texto y los metadatos
             Map<String, Object> response = new HashMap<>();
             response.put("rawResponse", cleanText);
+            response.put("_usageMetadata", usageStats); // <--- AHORA SÍ VIAJA AL FRONTEND
+
             return ResponseEntity.ok(response);
 
         } catch (PlanLimitExceededException | UnauthorizedUserException e) {
@@ -219,7 +232,6 @@ public class AiController {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
     private String generarContextoBucket() {
         Map<String, String> carpetaContexto = Map.of(
                 "Camara_de_Diputados/", "Acuerdos legislativos.",
