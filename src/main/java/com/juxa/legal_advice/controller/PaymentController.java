@@ -2,6 +2,8 @@ package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.PortalRequestDTO;
 import com.juxa.legal_advice.dto.PortalResponseDTO;
+import com.juxa.legal_advice.dto.UserDataDTO;
+import com.juxa.legal_advice.dto.payment.CheckoutRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
 import com.juxa.legal_advice.model.PlanEntity;
@@ -39,23 +41,17 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/payments")
+@RequiredArgsConstructor // <-- Esto crea el constructor automáticamente para todas las variables 'final'
 public class PaymentController {
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class); ////////////////
-    @Autowired
-    private PaymentService paymentService;
 
-    @Autowired
-    private StripeWebhookService stripeWebhookService;
-
+    private final PaymentService paymentService;
+    private final StripeWebhookService stripeWebhookService;
     private final UserService userService;
     private final PlanService planService;
     private final UserRepository userRepository;
 
-    public PaymentController(UserService userService, PlanService planService, UserRepository userRepository) {
-        this.userService = userService;
-        this.planService = planService;
-        this.userRepository = userRepository;
-    }
+
 
     @PostMapping("/create-trial-checkout")
     public ResponseEntity<?> createTrialCheckout() {
@@ -180,11 +176,29 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
-    @PostMapping("/checkout")
-    public ResponseEntity<PaymentResponseDTO> createCheckout(@RequestBody PaymentRequestDTO request){
-        return ResponseEntity.ok(paymentService.createCheckout(request));
-    }
 
+    @PostMapping("/checkout")
+    public ResponseEntity<PaymentResponseDTO> createCheckout(@RequestBody CheckoutRequestDTO request) {
+
+        // 1. Obtenemos al usuario de forma segura desde el token JWT
+        UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+        // 2. Construimos el UserDataDTO con los datos seguros + la categoría del Frontend
+        UserDataDTO userData = new UserDataDTO();
+        // Convertimos a String porque tu servicio hace Long.parseLong(user.getUserId())
+        userData.setUserId(currentUser.getId().toString());
+        userData.setEmail(currentUser.getEmail());
+        userData.setCategory(request.getCategory());
+
+        // 3. Empaquetamos todo en tu viejo PaymentRequestDTO
+        PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
+        paymentRequest.setUserDataDTO(userData);
+
+        // 4. Se lo pasamos a tu servicio ORIGINAL sin modificarle ni una sola línea
+        PaymentResponseDTO response = paymentService.createCheckout(paymentRequest);
+
+        return ResponseEntity.ok(response);
+    }
 
 
     @PostMapping("/webhook")

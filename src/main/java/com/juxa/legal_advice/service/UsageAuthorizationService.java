@@ -27,6 +27,7 @@ public class UsageAuthorizationService {
         PlanUsageEntity usage = user.getPlanUsage();
         if (usage == null) {
             usage = PlanUsageEntity.builder().user(user).build();
+            user.setPlanUsage(usage);
         }
 
         LocalDate today = LocalDate.now();
