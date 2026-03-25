@@ -75,6 +75,9 @@ public class UserEntity {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private PlanUsageEntity planUsage;
+
+    @Column(name = "is_verified", nullable = false)
+    private boolean isVerified = false;
     }
 
 
