@@ -197,10 +197,18 @@ public class AiController {
     @PostMapping(value = "/extract-text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> extractTextFromDocument(@RequestParam("file") MultipartFile file) {
         try {
-            // Misma lógica de GeminiService para leer PDFs
+            // Misma lógica de GeminiService para leer PDFs o .doc
             String textoExtraido = geminiService.extractTextFromFile(file);
+            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
 
-            return ResponseEntity.ok(Map.of("extractedText", textoExtraido));
+            // Verificamos si es un .doc para indicarle al frontend que es HTML
+            boolean isHtml = filename.endsWith(".doc");
+
+            // Devolvemos tanto el texto como la bandera
+            return ResponseEntity.ok(Map.of(
+                    "extractedText", textoExtraido,
+                    "isHtml", isHtml
+            ));
         } catch (Exception e) {
             e.printStackTrace(); // Ver el error en consola de Java
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

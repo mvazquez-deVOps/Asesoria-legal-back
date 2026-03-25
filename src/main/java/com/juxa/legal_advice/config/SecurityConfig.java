@@ -1,6 +1,8 @@
 package com.juxa.legal_advice.config;
 
 import com.juxa.legal_advice.security.JwtFilter;
+import com.juxa.legal_advice.security.RateLimitFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,21 +23,27 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+
+
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+
+    private final RateLimitFilter rateLimitFilter;
+
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtFilter jwtFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtFilter jwtFilter, RateLimitFilter rateLimitFilter, UserDetailsService userDetailsService) {
+        this.rateLimitFilter = rateLimitFilter;
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-
         return new BCryptPasswordEncoder();
     }
 
@@ -68,16 +76,15 @@ public class SecurityConfig {
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll  ()
+                        .requestMatchers("/api/auth/**").permitAll()
                         // Añade el comodín para cubrir todos los endpoints de IA
                         .requestMatchers("/api/ai/**").permitAll()
-                        .requestMatchers("/api/v1/formats/**").permitAll()
+                        .requestMatchers("/api/v1/formats/**").authenticated()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
                         .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/pdf/**").authenticated()
                         .requestMatchers("/api/denuncias/**").authenticated()
-
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
@@ -100,7 +107,8 @@ public class SecurityConfig {
                 "https://asesoriajuridica.tech",
                 "https://techlegal.io",
                 "https://asesorialegal-front-test-284685729356.us-central1.run.app",
-                "https://juxa.io"
+                "https://juxa.io",
+                "https://asesorialegal-front-test-284685729356.us-central1.run.app"
         ));
 
         // 2. Permitimos todos los métodos y encabezados necesarios

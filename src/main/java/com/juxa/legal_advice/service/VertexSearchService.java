@@ -37,6 +37,7 @@ public class VertexSearchService {
             System.out.println("--- [SISTEMA] Cliente de Vertex Search inicializado (v1beta) ---");
         } catch (Exception e) {
             System.err.println("--- [ERROR] No se pudo inicializar Vertex Search: " + e.getMessage());
+
         }
     }
 
