@@ -10,6 +10,8 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.web.client.HttpServerErrorException;
+import com.google.auth.oauth2.GoogleCredentials;
+import java.util.Collections;
 
 
 import java.util.ArrayList;
@@ -100,7 +102,7 @@ public class    GeminiClient {
     /**
      * MODO STREAM CON SOPORTE MULTIMODAL
      */
-    public Flux<String> streamGemini(String prompt, String fileBase64, String mimeType) {
+     public Flux<String> streamGemini(String prompt, String fileBase64, String mimeType) {
         List<Map<String, Object>> parts = new ArrayList<>();
 
         // Igual que arriba, el documento va antes

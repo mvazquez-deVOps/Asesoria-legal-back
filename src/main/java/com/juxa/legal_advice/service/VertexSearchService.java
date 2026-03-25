@@ -4,6 +4,7 @@ import com.google.cloud.discoveryengine.v1beta.SearchServiceClient;
 import com.google.cloud.discoveryengine.v1beta.SearchRequest;
 import com.google.cloud.discoveryengine.v1beta.SearchResponse;
 import com.google.cloud.discoveryengine.v1beta.SearchServiceSettings;
+import com.google.cloud.spring.core.DefaultCredentialsProvider;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,7 @@ public class VertexSearchService {
             System.out.println("--- [SISTEMA] Cliente de Vertex Search inicializado (v1beta) ---");
         } catch (Exception e) {
             System.err.println("--- [ERROR] No se pudo inicializar Vertex Search: " + e.getMessage());
+
         }
     }
 

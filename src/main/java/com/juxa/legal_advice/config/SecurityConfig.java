@@ -1,6 +1,8 @@
 package com.juxa.legal_advice.config;
 
 import com.juxa.legal_advice.security.JwtFilter;
+import com.juxa.legal_advice.security.RateLimitFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,14 +23,21 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+
+
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+
+    private final RateLimitFilter rateLimitFilter;
+
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtFilter jwtFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtFilter jwtFilter, RateLimitFilter rateLimitFilter, UserDetailsService userDetailsService) {
+        this.rateLimitFilter = rateLimitFilter;
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
@@ -97,6 +106,8 @@ public class SecurityConfig {
                 "https://asesorialegal-abogados-284685729356.us-central1.run.app",
                 "https://asesoriajuridica.tech",
                 "https://techlegal.io",
+                "https://asesorialegal-front-test-284685729356.us-central1.run.app",
+                "https://juxa.io",
                 "https://asesorialegal-front-test-284685729356.us-central1.run.app"
         ));
 
