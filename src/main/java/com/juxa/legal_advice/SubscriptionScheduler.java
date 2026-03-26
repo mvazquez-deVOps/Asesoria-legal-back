@@ -1,4 +1,4 @@
-package com.juxa.legal_advice.scheduler;
+package com.juxa.legal_advice;
 
 import com.juxa.legal_advice.service.UserService;
 import org.slf4j.Logger;
@@ -19,7 +19,8 @@ public class SubscriptionScheduler {
      * Executes everyday at 00:00:00.
      * The zone is explicitly set to ensure it respects Mexico City time (CST/CDT).
      */
-    @Scheduled(cron = "13 28 13 * * ?", zone = "America/Mexico_City")
+    @Scheduled(cron = "01 00 00 * * ?", zone = "America/Mexico_City")
+ //   @Scheduled(fixedRate = 5000)
     public void checkAndDeactivateSubscriptions() {
         logger.info("Starting daily subscription check at 0:00 hours...");
         userService.deactivateExpiredSubscriptions();
