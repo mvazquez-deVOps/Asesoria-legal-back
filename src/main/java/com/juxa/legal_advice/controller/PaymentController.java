@@ -91,12 +91,16 @@ public class PaymentController {
                     .setCustomer(stripeCustomerId)
                     .setSuccessUrl("https://tu-frontend.com/dashboard?session_id={CHECKOUT_SESSION_ID}")
                     .setCancelUrl("https://tu-frontend.com/planes")
-                    // 👇 ESTO ES VITAL: El webhook lo necesita para saber a quién asignarle la compra
                     .putMetadata("user_id", String.valueOf(user.getId()))
                     .putMetadata("plan_id", String.valueOf(plan.getId()))
                     .setSubscriptionData(SessionCreateParams.SubscriptionData.builder()
-                            .setTrialPeriodDays(7L) // La magia del Trial
-                            // 👇 También lo ponemos aquí por seguridad (Stripe lo propaga a la suscripción)
+                            .setTrialPeriodDays(7L)
+                            // 👇 NUEVO: Le decimos a Stripe qué hacer si acaba el trial y no hay tarjeta (CANCELAR)
+                            .setTrialSettings(SessionCreateParams.SubscriptionData.TrialSettings.builder()
+                                    .setEndBehavior(SessionCreateParams.SubscriptionData.TrialSettings.EndBehavior.builder()
+                                            .setMissingPaymentMethod(SessionCreateParams.SubscriptionData.TrialSettings.EndBehavior.MissingPaymentMethod.CANCEL)
+                                            .build())
+                                    .build())
                             .putMetadata("user_id", String.valueOf(user.getId()))
                             .putMetadata("plan_id", String.valueOf(plan.getId()))
                             .build())
@@ -104,7 +108,8 @@ public class PaymentController {
                             .setPrice(plan.getStripePriceId())
                             .setQuantity(1L)
                             .build())
-                    .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.ALWAYS) // Obliga a meter tarjeta
+                    // 👇 CAMBIO CLAVE: Cambiar ALWAYS por IF_REQUIRED (o puedes borrar esta línea, ya que es el default)
+                    .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.IF_REQUIRED)
                     .build();
 
             Session session = Session.create(params);
