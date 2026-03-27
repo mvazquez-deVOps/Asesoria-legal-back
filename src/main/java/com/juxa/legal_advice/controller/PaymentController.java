@@ -1,11 +1,13 @@
 package com.juxa.legal_advice.controller;
 
+import com.juxa.legal_advice.config.TokenPackageDef;
 import com.juxa.legal_advice.dto.PortalRequestDTO;
 import com.juxa.legal_advice.dto.PortalResponseDTO;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.dto.payment.CheckoutRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
+import com.juxa.legal_advice.dto.payment.TokenCheckoutRequestDTO;
 import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.service.payment.PaymentService;
 import com.juxa.legal_advice.service.payment.StripeWebhookService; // Asegúrate de importar esto
@@ -21,20 +23,12 @@ import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.service.UserService;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.service.PlanService;
-import com.juxa.legal_advice.service.UserService;
 import com.stripe.model.Customer;
-import com.stripe.model.checkout.Session;
-import com.stripe.param.CustomerCreateParams;
-import com.stripe.param.checkout.SessionCreateParams;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -257,6 +251,67 @@ public class PaymentController {
             log.error("Error inesperado al cancelar la suscripción", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Ocurrió un error inesperado al conectar con el servidor de pagos."));
+        }
+    }
+
+    @PostMapping("/checkout/tokens")
+    public ResponseEntity<?> createOneTimeCheckout(@RequestBody TokenCheckoutRequestDTO request) {
+        try {
+            UserEntity user = userService.getCurrentAuthenticatedUser();
+            String stripeCustomerId = user.getStripeCustomerId();
+
+            // 1. Validar el paquete que nos piden contra nuestro Enum de seguridad
+            TokenPackageDef selectedPackage = TokenPackageDef.fromDbName(request.getPackageName());
+
+            // 2. Si no tiene Customer ID en Stripe, lo creamos
+            if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
+                String safeName = (user.getName() != null && !user.getName().trim().isEmpty())
+                        ? user.getName()
+                        : "Usuario JUXA";
+
+                CustomerCreateParams customerParams = CustomerCreateParams.builder()
+                        .setEmail(user.getEmail())
+                        .setName(safeName)
+                        .build();
+
+                Customer customer = Customer.create(customerParams);
+                stripeCustomerId = customer.getId();
+
+                user.setStripeCustomerId(stripeCustomerId);
+                userRepository.save(user);
+            }
+
+            // 3. Extraer el precio del paquete desde la BD usando el nombre del Enum
+            // Nota: Debes asegurarte de registrar estos "dbName" en tu tabla de planes/productos
+            PlanEntity tokenPack = planService.getPlanByName(selectedPackage.getDbName());
+
+            // 4. Crear la sesión de Checkout
+            SessionCreateParams params = SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.PAYMENT) // Modo de pago único
+                    .setCustomer(stripeCustomerId)
+                    .setSuccessUrl("https://tu-frontend.com/dashboard?payment=success")
+                    .setCancelUrl("https://tu-frontend.com/planes")
+                    // METADATA DINÁMICA
+                    .putMetadata("payment_type", "extra_tokens")
+                    .putMetadata("user_id", String.valueOf(user.getId()))
+                    .putMetadata("token_amount", String.valueOf(selectedPackage.getTokenAmount()))
+                    .putMetadata("package_name", selectedPackage.getDisplayName()) // Opcional, pero útil
+                    .addLineItem(SessionCreateParams.LineItem.builder()
+                            .setPrice(tokenPack.getStripePriceId()) // Precio dinámico de tu BD
+                            .setQuantity(1L)
+                            .build())
+                    .build();
+
+            Session session = Session.create(params);
+
+            return ResponseEntity.ok(Map.of("url", session.getUrl()));
+
+        } catch (IllegalArgumentException e) {
+            // Captura el error si el frontend manda un nombre de paquete que no existe
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error creando checkout de tokens: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
 }
