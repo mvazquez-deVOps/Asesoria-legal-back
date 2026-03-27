@@ -19,4 +19,6 @@ public class AuthResponseDTO {
     private String role;
     private String subscriptionPlan;
     private String personType; // Se añade para que el Front sepa si ya eligió
+
+    private Boolean showTrialOption;
 }

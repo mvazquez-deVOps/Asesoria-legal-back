@@ -6,6 +6,7 @@ import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.model.SubscriptionEntity;
 import com.juxa.legal_advice.model.UserEntity;
+import com.juxa.legal_advice.repository.DeletedAccountRepository;
 import com.juxa.legal_advice.repository.SubscriptionRepository;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
@@ -37,7 +38,7 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder; // Inyectado desde SecurityConfig
     private final SubscriptionRepository subscriptionRepository;
-
+    private final DeletedAccountRepository deletedAccountRepository;
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     /**
      * Proceso de Login y Autenticación
@@ -98,6 +99,17 @@ public class UserService {
         // 5. Generar el Token JWT Real
         String token = jwtUtil.generateToken(user.getEmail());
 
+        boolean isEligibleForTrial = true;
+
+        // Regla 1: Si ya tiene (o tuvo) una suscripción, pierde el derecho al trial
+        if (subscriptionRepository.existsByUserId(user.getId())) {
+            isEligibleForTrial = false;
+        }
+        // Regla 2: Si su email está en la tabla de cuentas eliminadas (abuso de trial)
+        else if (deletedAccountRepository.existsByEmail(user.getEmail())) {
+            isEligibleForTrial = false;
+        }
+
         // 6. Construir respuesta (Asegúrate que tu DTO AuthResponseDTO tenga este constructor)
         return AuthResponseDTO.builder()
                 .token(token)
@@ -109,6 +121,7 @@ public class UserService {
                 .subscriptionPlan(user.getSubscriptionPlan())
                 .personType(user.getPersonType())
                 .phone(user.getPhone()) // si lo tienes en la entidad
+                .showTrialOption(isEligibleForTrial)
                 .build();
 
     }

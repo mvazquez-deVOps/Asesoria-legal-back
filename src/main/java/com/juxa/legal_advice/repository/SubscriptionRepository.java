@@ -22,4 +22,6 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
             "AND status = 'trialing'",
             nativeQuery = true)
     int updateExpiredTrialingSubscriptionsStatus();
+
+    boolean existsByUserId(Long userId);
 }
