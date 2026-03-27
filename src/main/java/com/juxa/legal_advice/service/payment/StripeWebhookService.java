@@ -40,7 +40,7 @@ public class StripeWebhookService {
     private UserRepository userRepository;
     @Autowired
     private PlanRepository planRepository;
-    @Autowired // <-- Faltaba inyectar esto
+    @Autowired
     private PlanUsageRepository planUsageRepository;
 
 

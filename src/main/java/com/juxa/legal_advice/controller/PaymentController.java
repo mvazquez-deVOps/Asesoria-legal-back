@@ -60,9 +60,9 @@ public class PaymentController {
             String stripeCustomerId = user.getStripeCustomerId();
             /// ////////////////////////////////////////
             // BLOQUEO DE SEGURIDAD: Evitar que alguien que ya tiene un plan activo vuelva a pedir un Trial
-          /*  if (user.getSubscriptionPlan() != null || user.getSubscriptionPlan() != "FREE") {
-                return ResponseEntity.status(400).body(Map.of("error", "El usuario ya tiene un plan activo."));
-      } */ /// //////////////// DEBERIAMOS refactorizar que la  propiedad de subscripción no sea FREE automaticamente
+         //   if (user.getSubscriptionPlan() != null && user.getSubscriptionPlan() != "FREE") {
+         //       return ResponseEntity.status(400).body(Map.of("error", "El usuario ya tiene un plan activo."));
+     // }  /// //////////////// DEBERIAMOS refactorizar que la  propiedad de subscripción no sea FREE automaticamente
             // 1. CREACIÓN DE CLIENTE SEGURA
             if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
 

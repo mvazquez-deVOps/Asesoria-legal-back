@@ -14,11 +14,18 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     // Assuming the UserEntity has a field named 'subscriptionPlan'
     // and SubscriptionEntity has a field named 'currentPeriodEnd'
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE users SET subscription_plan = 'FREE' WHERE id IN " +
             "(SELECT user_id FROM subscriptions WHERE current_period_end < DATE_SUB(NOW(), INTERVAL 7 DAY)) " +
             "AND subscription_plan != 'FREE'", nativeQuery = true)
     int updateExpiredSubscriptionsToFree();
+
+    // NUEVO: Para los 'trialing' inmediatos
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE users SET subscription_plan = 'FREE' WHERE id IN " +
+            "(SELECT user_id FROM subscriptions WHERE current_period_end < NOW() AND status = 'trialing') " +
+            "AND subscription_plan != 'FREE'", nativeQuery = true)
+    int updateExpiredTrialingUsersToFree();
 }
 
 

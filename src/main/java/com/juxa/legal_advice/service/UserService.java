@@ -42,14 +42,35 @@ public class UserService {
      */
 
     @Transactional
-    public void deactivateExpiredSubscriptions() {
+    public void deactivateExpiredActiveSubscriptions() {
         try {
+            // 1. PRIMERO actualizamos los usuarios a FREE
             int updatedUsers = userRepository.updateExpiredSubscriptionsToFree();
-            logger.info("Successfully updated {} expired subscriptions to FREE.", updatedUsers);
+
+            // 2. DESPUÉS marcamos las suscripciones como inyectivas
+            int updatedSubs = subscriptionRepository.updateExpiredSubscriptionsStatus();
+
+            logger.info("Grace period ended: Updated {} users to FREE and marked {} subscriptions as inactive.", updatedUsers, updatedSubs);
         } catch (Exception e) {
-            logger.error("Error while updating expired subscriptions: ", e);
+            logger.error("Error updating active subscriptions past grace period: ", e);
         }
     }
+
+    @Transactional
+    public void deactivateExpiredTrialSubscriptions() {
+        try {
+            // 1. PRIMERO actualizamos los usuarios de trial a FREE
+            int updatedUsers = userRepository.updateExpiredTrialingUsersToFree();
+
+            // 2. DESPUÉS marcamos las suscripciones de trial como inyectivas
+            int updatedSubs = subscriptionRepository.updateExpiredTrialingSubscriptionsStatus();
+
+            logger.info("Trials ended: Updated {} users to FREE and marked {} trial subscriptions as inactive.", updatedUsers, updatedSubs);
+        } catch (Exception e) {
+            logger.error("Error updating expired trial subscriptions: ", e);
+        }
+    }
+
     @Transactional
     public AuthResponseDTO authenticate(AuthRequestDTO credentials) {
         // 1. Buscar usuario por email
@@ -111,14 +132,17 @@ public class UserService {
                     .build();
         }
         // ========================================================================
-
         // Si NO es FREE, buscamos su suscripción de pago
         Optional<SubscriptionEntity> subOpt = subscriptionRepository.findByUserId(user.getId());
 
         if (subOpt.isPresent()) {
             SubscriptionEntity sub = subOpt.get();
 
-            boolean isActive = sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now());
+// El CRON job ya se encarga de cambiar el status a 'inactive' en la BD
+            // Por lo tanto, si el status es 'active' o 'trialing', la suscripción es válida.
+            boolean isActive = "active".equalsIgnoreCase(sub.getStatus()) ||
+                    "trialing".equalsIgnoreCase(sub.getStatus());
+
             boolean willCancel = sub.isCancelAtPeriodEnd();
 
             return UserSubscriptionResponseDTO.builder()
