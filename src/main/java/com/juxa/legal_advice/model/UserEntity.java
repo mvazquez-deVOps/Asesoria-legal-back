@@ -55,6 +55,10 @@ public class UserEntity {
     @Column(name = "last_message_date")
     private LocalDate lastMessageDate;
 
+    @Builder.Default
+    @Column(name = "is_verified", nullable = false)
+    private Boolean isVerified = false; // Le ponemos un valor por defecto
+
     @PrePersist
     protected void onCreate() {
         // 1. Tiempos base

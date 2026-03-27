@@ -60,9 +60,9 @@ public class PaymentController {
             String stripeCustomerId = user.getStripeCustomerId();
             /// ////////////////////////////////////////
             // BLOQUEO DE SEGURIDAD: Evitar que alguien que ya tiene un plan activo vuelva a pedir un Trial
-          /*  if (user.getSubscriptionPlan() != null || user.getSubscriptionPlan() != "FREE") {
-                return ResponseEntity.status(400).body(Map.of("error", "El usuario ya tiene un plan activo."));
-      } */ /// //////////////// DEBERIAMOS refactorizar que la  propiedad de subscripción no sea FREE automaticamente
+         //   if (user.getSubscriptionPlan() != null && user.getSubscriptionPlan() != "FREE") {
+         //       return ResponseEntity.status(400).body(Map.of("error", "El usuario ya tiene un plan activo."));
+     // }  /// //////////////// DEBERIAMOS refactorizar que la  propiedad de subscripción no sea FREE automaticamente
             // 1. CREACIÓN DE CLIENTE SEGURA
             if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
 
@@ -233,6 +233,30 @@ public class PaymentController {
             log.error("Error creando el portal de cliente: {}", e.getMessage());
             // Si el usuario no tiene Customer ID u ocurre otro error, devolvemos un 400
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/cancel-subscription")
+    public ResponseEntity<?> cancelSubscription() {
+        try {
+            // Obtiene el usuario directamente del JWT.
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            String resultMessage = paymentService.cancelSubscription(currentUser.getId());
+
+            // Devuelve un JSON para el Front
+            return ResponseEntity.ok(Map.of("message", resultMessage));
+
+        } catch (RuntimeException e) {
+            // Si la suscripción ya estaba cancelada o no se encontró, devolvemos un error 400
+            log.error("Error al cancelar la suscripción del usuario: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+
+        } catch (Exception e) {
+            // Fallback para errores de conectividad con Stripe o servidor
+            log.error("Error inesperado al cancelar la suscripción", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Ocurrió un error inesperado al conectar con el servidor de pagos."));
         }
     }
 }
