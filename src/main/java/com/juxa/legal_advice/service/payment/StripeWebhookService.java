@@ -82,27 +82,24 @@ public class StripeWebhookService {
                     log.info("🚀 Procesando checkout.session.completed...");
                     Session session = (Session) stripeObject;
 
-                    // ========================================================
-                    // NUEVA LÓGICA: ¿Qué compró el usuario?
-                    // ========================================================
                     Map<String, String> metadata = session.getMetadata();
 
-                    if (session.getPaymentStatus().equals("paid")) {
-                        // Verificamos si la metadata dice que es una compra de tokens
+                    // 👇 CAMBIO CLAVE: Aceptar "paid" o "no_payment_required"
+                    String paymentStatus = session.getPaymentStatus();
+                    if ("paid".equals(paymentStatus) || "no_payment_required".equals(paymentStatus)) {
+
                         if (metadata != null && "extra_tokens".equals(metadata.get("payment_type"))) {
                             log.info("🪙 Detectada compra de tokens extra. Procesando...");
                             handleExtraTokensPurchase(metadata);
                             return "Compra de tokens procesada exitosamente";
-                        }
-                        // Si no es compra de tokens, asumimos que es una suscripción normal
-                        else {
+                        } else {
                             log.info("📅 Detectada compra de suscripción/trial. Procesando...");
                             handleCheckoutSessionCompleted(session);
                             return "Suscripción inicial guardada";
                         }
                     } else {
-                        log.warn("⚠️ Checkout completado pero el pago no está 'paid'. Status: {}", session.getPaymentStatus());
-                        return "Checkout completado sin pago";
+                        log.warn("⚠️ Checkout completado pero el pago no es válido. Status: {}", paymentStatus);
+                        return "Checkout completado sin pago válido";
                     }
                 case "invoice.paid":
                     log.info("💰 Procesando invoice.paid...");

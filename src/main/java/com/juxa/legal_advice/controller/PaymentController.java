@@ -2,6 +2,8 @@ package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.PortalRequestDTO;
 import com.juxa.legal_advice.dto.PortalResponseDTO;
+import com.juxa.legal_advice.dto.UserDataDTO;
+import com.juxa.legal_advice.dto.payment.CheckoutRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentRequestDTO;
 import com.juxa.legal_advice.dto.payment.PaymentResponseDTO;
 import com.juxa.legal_advice.model.PlanEntity;
@@ -39,23 +41,17 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/payments")
+@RequiredArgsConstructor // <-- Esto crea el constructor automáticamente para todas las variables 'final'
 public class PaymentController {
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class); ////////////////
-    @Autowired
-    private PaymentService paymentService;
 
-    @Autowired
-    private StripeWebhookService stripeWebhookService;
-
+    private final PaymentService paymentService;
+    private final StripeWebhookService stripeWebhookService;
     private final UserService userService;
     private final PlanService planService;
     private final UserRepository userRepository;
 
-    public PaymentController(UserService userService, PlanService planService, UserRepository userRepository) {
-        this.userService = userService;
-        this.planService = planService;
-        this.userRepository = userRepository;
-    }
+
 
     @PostMapping("/create-trial-checkout")
     public ResponseEntity<?> createTrialCheckout() {
@@ -95,12 +91,16 @@ public class PaymentController {
                     .setCustomer(stripeCustomerId)
                     .setSuccessUrl("https://tu-frontend.com/dashboard?session_id={CHECKOUT_SESSION_ID}")
                     .setCancelUrl("https://tu-frontend.com/planes")
-                    // 👇 ESTO ES VITAL: El webhook lo necesita para saber a quién asignarle la compra
                     .putMetadata("user_id", String.valueOf(user.getId()))
                     .putMetadata("plan_id", String.valueOf(plan.getId()))
                     .setSubscriptionData(SessionCreateParams.SubscriptionData.builder()
-                            .setTrialPeriodDays(7L) // La magia del Trial
-                            // 👇 También lo ponemos aquí por seguridad (Stripe lo propaga a la suscripción)
+                            .setTrialPeriodDays(7L)
+                            // 👇 NUEVO: Le decimos a Stripe qué hacer si acaba el trial y no hay tarjeta (CANCELAR)
+                            .setTrialSettings(SessionCreateParams.SubscriptionData.TrialSettings.builder()
+                                    .setEndBehavior(SessionCreateParams.SubscriptionData.TrialSettings.EndBehavior.builder()
+                                            .setMissingPaymentMethod(SessionCreateParams.SubscriptionData.TrialSettings.EndBehavior.MissingPaymentMethod.CANCEL)
+                                            .build())
+                                    .build())
                             .putMetadata("user_id", String.valueOf(user.getId()))
                             .putMetadata("plan_id", String.valueOf(plan.getId()))
                             .build())
@@ -108,7 +108,8 @@ public class PaymentController {
                             .setPrice(plan.getStripePriceId())
                             .setQuantity(1L)
                             .build())
-                    .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.ALWAYS) // Obliga a meter tarjeta
+                    // 👇 CAMBIO CLAVE: Cambiar ALWAYS por IF_REQUIRED (o puedes borrar esta línea, ya que es el default)
+                    .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.IF_REQUIRED)
                     .build();
 
             Session session = Session.create(params);
@@ -180,11 +181,29 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
-    @PostMapping("/checkout")
-    public ResponseEntity<PaymentResponseDTO> createCheckout(@RequestBody PaymentRequestDTO request){
-        return ResponseEntity.ok(paymentService.createCheckout(request));
-    }
 
+    @PostMapping("/checkout")
+    public ResponseEntity<PaymentResponseDTO> createCheckout(@RequestBody CheckoutRequestDTO request) {
+
+        // 1. Obtenemos al usuario de forma segura desde el token JWT
+        UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+        // 2. Construimos el UserDataDTO con los datos seguros + la categoría del Frontend
+        UserDataDTO userData = new UserDataDTO();
+        // Convertimos a String porque tu servicio hace Long.parseLong(user.getUserId())
+        userData.setUserId(currentUser.getId().toString());
+        userData.setEmail(currentUser.getEmail());
+        userData.setCategory(request.getCategory());
+
+        // 3. Empaquetamos todo en tu viejo PaymentRequestDTO
+        PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
+        paymentRequest.setUserDataDTO(userData);
+
+        // 4. Se lo pasamos a tu servicio ORIGINAL sin modificarle ni una sola línea
+        PaymentResponseDTO response = paymentService.createCheckout(paymentRequest);
+
+        return ResponseEntity.ok(response);
+    }
 
 
     @PostMapping("/webhook")

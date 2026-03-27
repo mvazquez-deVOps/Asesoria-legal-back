@@ -9,7 +9,11 @@ import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.SubscriptionRepository;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Customer;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,9 +38,20 @@ public class UserService {
     private final PasswordEncoder passwordEncoder; // Inyectado desde SecurityConfig
     private final SubscriptionRepository subscriptionRepository;
 
+    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     /**
      * Proceso de Login y Autenticación
      */
+
+    @Transactional
+    public void deactivateExpiredSubscriptions() {
+        try {
+            int updatedUsers = userRepository.updateExpiredSubscriptionsToFree();
+            logger.info("Successfully updated {} expired subscriptions to FREE.", updatedUsers);
+        } catch (Exception e) {
+            logger.error("Error while updating expired subscriptions: ", e);
+        }
+    }
     @Transactional
     public AuthResponseDTO authenticate(AuthRequestDTO credentials) {
         // 1. Buscar usuario por email
@@ -116,6 +131,7 @@ public class UserService {
                     .willCancelAtPeriodEnd(willCancel)
                     .build();
         } else {
+            logger.error("Base de datos desincronizada. Verificar si está conectado a  Stripe");
             // Fallback por si la base de datos se desincroniza (dice que tiene plan pero no hay registro)
             return UserSubscriptionResponseDTO.builder()
                     .hasActiveSubscription(false)
@@ -212,5 +228,22 @@ public class UserService {
 
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario autenticado no encontrado en la base de datos."));
+    }
+
+    // -- Eliminar usuarios de la base de datos y de Stripe --
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUserCompletely(Long id) {
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        if (user.getStripeCustomerId() != null && !user.getStripeCustomerId().isEmpty()) {
+            try {
+                Customer stripeCustomer = Customer.retrieve(user.getStripeCustomerId());
+                stripeCustomer.delete();
+            } catch (StripeException e) {
+                System.err.println("Advertencia al borrar en Stripe: " + e.getMessage());
+            }
+        }
+        userRepository.delete(user);
     }
 }
