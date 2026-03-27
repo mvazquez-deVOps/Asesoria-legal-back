@@ -14,6 +14,8 @@ import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
+import com.stripe.model.Subscription;
+import com.stripe.param.SubscriptionUpdateParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -131,6 +133,44 @@ public class PaymentService {
             throw new RuntimeException("Error en la API de Stripe al generar el portal: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Error inesperado al generar el portal: " + e.getMessage(), e);
+        }
+    }
+
+    public String cancelSubscription(Long userId) {
+        // Busca al usuario y su suscripción en base de datos local
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        SubscriptionEntity localSub = subscriptionRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("No se encontró una suscripción activa para este usuario"));
+
+        // Validación que no intente cancelar algo que ya está cancelado
+        if (localSub.isCancelAtPeriodEnd()) {
+            throw new RuntimeException("La suscripción ya se encuentra programada para cancelarse.");
+        }
+
+        try {
+            Subscription stripeSub = Subscription.retrieve(localSub.getStripeSubscriptionId());
+
+            // Se cancela al final de su mes pagado
+            SubscriptionUpdateParams params = SubscriptionUpdateParams.builder()
+                    .setCancelAtPeriodEnd(true)
+                    .build();
+
+            stripeSub.update(params);
+
+            // Actualizamos base de datos local inmediatamente
+            localSub.setCancelAtPeriodEnd(true);
+            subscriptionRepository.save(localSub);
+
+            // Retorna mensaje claro para el usuario.
+            return "Suscripción cancelada con éxito. Conservarás acceso a las herramientas hasta el "
+                    + localSub.getCurrentPeriodEnd().toLocalDate().toString();
+
+        } catch (StripeException e) {
+            throw new RuntimeException("Error de comunicación con Stripe al intentar cancelar: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Error inesperado al cancelar la suscripción: " + e.getMessage(), e);
         }
     }
 }

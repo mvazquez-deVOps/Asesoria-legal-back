@@ -235,4 +235,28 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
+
+    @PostMapping("/cancel-subscription")
+    public ResponseEntity<?> cancelSubscription() {
+        try {
+            // Obtiene el usuario directamente del JWT.
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            String resultMessage = paymentService.cancelSubscription(currentUser.getId());
+
+            // Devuelve un JSON para el Front
+            return ResponseEntity.ok(Map.of("message", resultMessage));
+
+        } catch (RuntimeException e) {
+            // Si la suscripción ya estaba cancelada o no se encontró, devolvemos un error 400
+            log.error("Error al cancelar la suscripción del usuario: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+
+        } catch (Exception e) {
+            // Fallback para errores de conectividad con Stripe o servidor
+            log.error("Error inesperado al cancelar la suscripción", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Ocurrió un error inesperado al conectar con el servidor de pagos."));
+        }
+    }
 }
