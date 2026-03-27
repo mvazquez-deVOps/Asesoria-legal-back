@@ -53,4 +53,14 @@ public class PlanService {
         return planRepository.findByName(planName)
                 .orElseThrow(() -> new RuntimeException("Plan no encontrado en la BD: " + planName));
     }
+
+    public JuxaPlanDef validateFeatureAccess(String planName, java.util.function.Predicate<JuxaPlanDef> feature) {
+        JuxaPlanDef planDef = JuxaPlanDef.fromString(planName);
+
+        if (!feature.test(planDef)) {
+            throw new RuntimeException("Acceso denegado: El plan '" + planDef.getDbName() + "' no incluye esta función.");
+        }
+
+        return planDef;
+    }
 }
