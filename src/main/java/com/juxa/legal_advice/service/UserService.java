@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.service;
-
+import com.juxa.legal_advice.model.DeletedAccountEntity;
+import com.juxa.legal_advice.repository.DeletedAccountRepository;
 import com.juxa.legal_advice.config.JuxaPlanDef;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.*;
@@ -273,11 +274,26 @@ public class UserService {
         UserEntity user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
+        // =================================================================
+        // 1. REGISTRAR EL CORREO PARA PREVENIR ABUSO DE TRIALS EN EL FUTURO
+        // =================================================================
+        if (!deletedAccountRepository.existsByEmail(user.getEmail())) {
+            DeletedAccountEntity deletedAccount = DeletedAccountEntity.builder()
+                    .email(user.getEmail())
+                    .build();
+            deletedAccountRepository.save(deletedAccount);
+        }
+
+        // =================================================================
+        // 2. ELIMINAR EL CLIENTE DE STRIPE
+        // =================================================================
         if (user.getStripeCustomerId() != null && !user.getStripeCustomerId().isEmpty()) {
             try {
                 Customer stripeCustomer = Customer.retrieve(user.getStripeCustomerId());
                 stripeCustomer.delete();
             } catch (StripeException e) {
+                // Solo imprimimos la advertencia. Si Stripe falla (ej. el usuario ya fue
+                // borrado manualmente desde el Dashboard), no queremos que aborte el proceso local.
                 System.err.println("Advertencia al borrar en Stripe: " + e.getMessage());
             }
         }

@@ -12,6 +12,8 @@ import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
+import static reactor.netty.http.HttpConnectionLiveness.log;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -34,14 +36,20 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAccount(@PathVariable("id") Long id) {
+    @DeleteMapping("/me/account")
+    public ResponseEntity<?> deleteMyAccount() {
+        log.info("entro ");
         try {
-            userService.deleteUserCompletely(id);
+            // 1. Obtenemos al usuario REAL basado en su token
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            // 2. Extraemos SU propio ID
+            userService.deleteUserCompletely(currentUser.getId());
 
             Map<String, String> response = new HashMap<>();
             response.put("message", "Cuenta y datos asociados eliminados permanentemente");
             return ResponseEntity.ok(response);
+
         } catch (Exception e) {
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("message", "Error al procesar la eliminación de la cuenta: " + e.getMessage());
