@@ -6,11 +6,11 @@ import com.juxa.legal_advice.service.UsageAuthorizationService;
 import com.juxa.legal_advice.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -32,5 +32,20 @@ public class UserController {
         UserSubscriptionResponseDTO response = userService.getMySubscriptionStatus(email);
 
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteAccount(@PathVariable("id") Long id) {
+        try {
+            userService.deleteUserCompletely(id);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Cuenta y datos asociados eliminados permanentemente");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error al procesar la eliminación de la cuenta: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 }

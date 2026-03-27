@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -79,7 +80,18 @@ public class UserEntity {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private PlanUsageEntity planUsage;
-    }
+
+    // Borrado en cascada para usuarios
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<ReporteEntity> reportes;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<SubscriptionEntity> subscriptions;
+}
 
 
 

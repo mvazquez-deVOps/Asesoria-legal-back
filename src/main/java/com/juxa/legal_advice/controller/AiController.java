@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
+import com.juxa.legal_advice.config.JuxaPlanDef;
 import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.UserDataDTO;
@@ -18,8 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,11 +141,27 @@ public class AiController {
         }
     }
     @PostMapping("/proxy-generate")
-    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String>
-                                                                           payload) {
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String> payload) {
         try {
+            // 1. Identificar al usuario autenticado
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+
+            // 2. Validar si su plan permite el uso de herramientas Proxy (Editor/Mini Apps)
+            JuxaPlanDef planDef = JuxaPlanDef.fromString(currentUser.getSubscriptionPlan());
+
+            if (!planDef.isCanUseProxy()) {
+                throw new PlanLimitExceededException("Tu plan " + planDef.getDbName() + " no incluye el uso de herramientas avanzadas.");
+            }
+
+            // 3. Validación de saldo de Tokens antes de la llamada
             String prompt = payload.get("prompt");
+            // Usamos el servicio existente para asegurar que tiene saldo
+            usageAuthService.validateSufficientTokens(currentUser, prompt, "", "");
+
+            // 4. Ejecución de la llamada a Gemini
             String aiResponse = geminiClient.callGemini(prompt);
+
+            // 5. Procesamiento de la respuesta
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(aiResponse);
 
@@ -158,11 +173,25 @@ public class AiController {
                     .path("text")
                     .asText();
 
+            // 6. Consumo posterior de tokens (Deducción real)
+            JsonNode usageNode = rootNode.path("usageMetadata");
+            if (!usageNode.isMissingNode()) {
+                int totalTokensSpent = usageNode.path("totalTokenCount").asInt(0);
+                usageAuthService.consumeTokens(currentUser, totalTokensSpent);
+            }
+
             Map<String, Object> response = new HashMap<>();
             response.put("rawResponse", cleanText);
             return ResponseEntity.ok(response);
+
+        } catch (PlanLimitExceededException e) {
+            // El GlobalExceptionHandler ya maneja esto como un 403 Forbidden
+            throw e;
+        } catch (UnauthorizedUserException e) {
+            // El GlobalExceptionHandler ya maneja esto como un 401 Unauthorized
+            throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", "Error interno al procesar la solicitud legal."));
         }
     }
 
