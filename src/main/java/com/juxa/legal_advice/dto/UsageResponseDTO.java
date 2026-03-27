@@ -34,4 +34,8 @@ public class UsageResponseDTO {
     private boolean canUseGenerator;
     private boolean canUseProxy;
     private boolean canUseEducational;
+    private boolean canUseAnalysis;
+    private boolean canUseSustento;
+    private boolean canUseSemantic;
+    private boolean canUseMagic;
 }
