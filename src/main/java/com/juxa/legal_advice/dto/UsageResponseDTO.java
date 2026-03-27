@@ -30,4 +30,8 @@ public class UsageResponseDTO {
     private boolean canUploadAudio;
     private boolean canUploadVideo;
     private boolean hasFullHistory;
+    private boolean canUseMiniApps;
+    private boolean canUseGenerator;
+    private boolean canUseProxy;
+    private boolean canUseEducational;
 }

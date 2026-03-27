@@ -6,12 +6,12 @@ import lombok.Getter;
 public enum JuxaPlanDef {
 
     // (dbName, maxTokens, aiModel, canUploadAudio, canUploadVideo, hasFullHistory)
-    FREE("FREE", 50000, "gemini-1.5-flash", false, false, false), // 50k tokens (aprox. 30 interacciones simples)
-    ESTUDIANTES("estudiantes", 250000, "gemini-1.5-flash", false, false, false),
-    JUXA_GO("juxa_go", /*500000*/ 7003, "gemini-1.5-flash", false, false, false),
-    JUNIOR("esencial_junior", 1000000, "gemini-1.5-flash", false, false, true),
-    PRO("intermedio_pro", 2000000, "gemini-1.5-pro", true, false, true),
-    ELITE("premium_elite", -1, "gemini-1.5-pro", true, true, true); // -1 = Ilimitado (Uso justo)
+    FREE("FREE", 50000, "gemini-2.5-flash", false, false, false, false, false, false, false), // 50k tokens (aprox. 30 interacciones simples)
+    ESTUDIANTES("estudiantes", 250000, "gemini-2.5-flash", false, false, false, false, false, false, true),
+    JUXA_GO("juxa_go", /*500000*/ 7003, "gemini-2.5-flash", false, false, false, true, true, true, true),
+    ESENCIAL("esencial_junior", 1000000, "gemini-2.5-flash", false, false, true, true, true, true, false),
+    PRO("intermedio_pro", 2000000, "gemini-2.5-pro", true, false, true, true, true, true, true),
+    ELITE("premium_elite", -1, "gemini-2.5-pro", true, true, true, true, true, true, true); // -1 = Ilimitado (Uso justo)
 
     private final String dbName;
     private final int maxTokens; // Ahora el límite es por Tokens
@@ -19,14 +19,26 @@ public enum JuxaPlanDef {
     private final boolean canUploadAudio;
     private final boolean canUploadVideo;
     private final boolean hasFullHistory;
+    private final boolean canUseMiniApps;
+    private final boolean canUseGenerator;
+    private final boolean canUseProxy;
+    private final boolean canUseEducational;
 
-    JuxaPlanDef(String dbName, int maxTokens, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory) {
+
+
+
+    JuxaPlanDef(String dbName, int maxTokens, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory, boolean canUseMiniApps, boolean canUseGenerator, boolean canUseProxy, boolean canUseEducational) {
         this.dbName = dbName;
         this.maxTokens = maxTokens;
         this.aiModel = aiModel;
         this.canUploadAudio = canUploadAudio;
         this.canUploadVideo = canUploadVideo;
         this.hasFullHistory = hasFullHistory;
+        this.canUseMiniApps = canUseMiniApps;
+        this.canUseGenerator = canUseGenerator;
+        this.canUseProxy = canUseProxy;
+        this.canUseEducational = canUseEducational;
+
     }
 
     public static JuxaPlanDef fromString(String planName) {

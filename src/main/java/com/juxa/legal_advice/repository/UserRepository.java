@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findByEmail(String email);
+    Optional<UserEntity> findByStripeCustomerId(String stripeCustomerId);
 
     // Assuming the UserEntity has a field named 'subscriptionPlan'
     // and SubscriptionEntity has a field named 'currentPeriodEnd'

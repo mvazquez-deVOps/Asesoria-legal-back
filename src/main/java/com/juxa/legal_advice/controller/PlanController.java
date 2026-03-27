@@ -58,6 +58,11 @@ public class PlanController {
                 .tokensLimit(limiteTokens)
                 .extraTokens(tokensExtra)
                 .canMakeMoreQueries(canQuery)
+                .canUseProxy(planDef.isCanUseProxy())
+
+                .canUseMiniApps(planDef.isCanUseMiniApps())
+                .canUseGenerator(planDef.isCanUseGenerator())
+                .canUseEducational(planDef.isCanUseEducational())
 
                 // Datos estadísticos (ya no bloquean, solo informan)
                 .queriesUsed(usage.getQueriesUsedToday() != null ? usage.getQueriesUsedToday() : 0)
