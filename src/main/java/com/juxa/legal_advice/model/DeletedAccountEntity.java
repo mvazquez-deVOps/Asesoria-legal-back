@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class DeletedAccountEntity {
-
+ // Solo se usa para validar a que usuarios les ofreceremos la prueba gratuita
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

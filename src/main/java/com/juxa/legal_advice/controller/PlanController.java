@@ -31,6 +31,7 @@ public class PlanController {
         return ResponseEntity.ok(plans);
     }
 
+   ////////////////////////// Mapea el plan de la base de datos de la tabla users ///////////////////////////
     @GetMapping("/me/usage")
     public ResponseEntity<UsageResponseDTO> getUserUsage() {
         UserEntity currentUser = userService.getCurrentAuthenticatedUser();

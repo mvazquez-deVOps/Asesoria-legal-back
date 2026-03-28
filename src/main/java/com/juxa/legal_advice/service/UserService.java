@@ -134,7 +134,7 @@ public class UserService {
         String planName = user.getSubscriptionPlan() != null ? user.getSubscriptionPlan() : "FREE";
 
         // ========================================================================
-        // Si es FREE, no buscamos en la tabla Subscriptions
+        // Si es FREE,  buscamos solo en la tabla Users
         // ========================================================================
         if ("FREE".equalsIgnoreCase(planName) || "BASIC".equalsIgnoreCase(planName)) {
             boolean isTrialActive = user.getTrialEndDate() != null && user.getTrialEndDate().isAfter(LocalDateTime.now());

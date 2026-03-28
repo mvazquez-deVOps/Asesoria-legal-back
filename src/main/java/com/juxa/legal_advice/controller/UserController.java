@@ -23,7 +23,8 @@ public class UserController {
     @Autowired
     private UsageAuthorizationService usageAuthService;
 
-
+    ////////////////////////// Mapea el plan de la base de datos de la tabla users o subscriptions  ///////////////////////////
+    //////////////////////////                   dependiendo de que su plan en users                ///////////////////////////
     @GetMapping("/me/subscription")
     public ResponseEntity<UserSubscriptionResponseDTO> getMySubscription(Principal principal) {
         // 'principal.getName()' nos dará el email del usuario que viene en el token JWT
