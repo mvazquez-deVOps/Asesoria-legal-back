@@ -1,11 +1,13 @@
 package com.juxa.legal_advice.service;
-
+import com.juxa.legal_advice.model.DeletedAccountEntity;
+import com.juxa.legal_advice.repository.DeletedAccountRepository;
 import com.juxa.legal_advice.config.JuxaPlanDef;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.model.SubscriptionEntity;
 import com.juxa.legal_advice.model.UserEntity;
+import com.juxa.legal_advice.repository.DeletedAccountRepository;
 import com.juxa.legal_advice.repository.SubscriptionRepository;
 import com.juxa.legal_advice.repository.UserRepository;
 import com.juxa.legal_advice.security.JwtUtil;
@@ -37,21 +39,42 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder; // Inyectado desde SecurityConfig
     private final SubscriptionRepository subscriptionRepository;
-
+    private final DeletedAccountRepository deletedAccountRepository;
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     /**
      * Proceso de Login y Autenticación
      */
 
     @Transactional
-    public void deactivateExpiredSubscriptions() {
+    public void deactivateExpiredActiveSubscriptions() {
         try {
+            // 1. PRIMERO actualizamos los usuarios a FREE
             int updatedUsers = userRepository.updateExpiredSubscriptionsToFree();
-            logger.info("Successfully updated {} expired subscriptions to FREE.", updatedUsers);
+
+            // 2. DESPUÉS marcamos las suscripciones como inyectivas
+            int updatedSubs = subscriptionRepository.updateExpiredSubscriptionsStatus();
+
+            logger.info("Grace period ended: Updated {} users to FREE and marked {} subscriptions as inactive.", updatedUsers, updatedSubs);
         } catch (Exception e) {
-            logger.error("Error while updating expired subscriptions: ", e);
+            logger.error("Error updating active subscriptions past grace period: ", e);
         }
     }
+
+    @Transactional
+    public void deactivateExpiredTrialSubscriptions() {
+        try {
+            // 1. PRIMERO actualizamos los usuarios de trial a FREE
+            int updatedUsers = userRepository.updateExpiredTrialingUsersToFree();
+
+            // 2. DESPUÉS marcamos las suscripciones de trial como inyectivas
+            int updatedSubs = subscriptionRepository.updateExpiredTrialingSubscriptionsStatus();
+
+            logger.info("Trials ended: Updated {} users to FREE and marked {} trial subscriptions as inactive.", updatedUsers, updatedSubs);
+        } catch (Exception e) {
+            logger.error("Error updating expired trial subscriptions: ", e);
+        }
+    }
+
     @Transactional
     public AuthResponseDTO authenticate(AuthRequestDTO credentials) {
         // 1. Buscar usuario por email
@@ -77,6 +100,17 @@ public class UserService {
         // 5. Generar el Token JWT Real
         String token = jwtUtil.generateToken(user.getEmail());
 
+        boolean isEligibleForTrial = true;
+
+        // Regla 1: Si ya tiene (o tuvo) una suscripción, pierde el derecho al trial
+        if (subscriptionRepository.existsByUserId(user.getId())) {
+            isEligibleForTrial = false;
+        }
+        // Regla 2: Si su email está en la tabla de cuentas eliminadas (abuso de trial)
+        else if (deletedAccountRepository.existsByEmail(user.getEmail())) {
+            isEligibleForTrial = false;
+        }
+
         // 6. Construir respuesta (Asegúrate que tu DTO AuthResponseDTO tenga este constructor)
         return AuthResponseDTO.builder()
                 .token(token)
@@ -88,6 +122,7 @@ public class UserService {
                 .subscriptionPlan(user.getSubscriptionPlan())
                 .personType(user.getPersonType())
                 .phone(user.getPhone()) // si lo tienes en la entidad
+                .showTrialOption(isEligibleForTrial)
                 .build();
 
     }
@@ -99,7 +134,7 @@ public class UserService {
         String planName = user.getSubscriptionPlan() != null ? user.getSubscriptionPlan() : "FREE";
 
         // ========================================================================
-        // Si es FREE, no buscamos en la tabla Subscriptions
+        // Si es FREE,  buscamos solo en la tabla Users
         // ========================================================================
         if ("FREE".equalsIgnoreCase(planName) || "BASIC".equalsIgnoreCase(planName)) {
             boolean isTrialActive = user.getTrialEndDate() != null && user.getTrialEndDate().isAfter(LocalDateTime.now());
@@ -113,14 +148,17 @@ public class UserService {
                     .build();
         }
         // ========================================================================
-
         // Si NO es FREE, buscamos su suscripción de pago
         Optional<SubscriptionEntity> subOpt = subscriptionRepository.findByUserId(user.getId());
 
         if (subOpt.isPresent()) {
             SubscriptionEntity sub = subOpt.get();
 
-            boolean isActive = sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now());
+// El CRON job ya se encarga de cambiar el status a 'inactive' en la BD
+            // Por lo tanto, si el status es 'active' o 'trialing', la suscripción es válida.
+            boolean isActive = "active".equalsIgnoreCase(sub.getStatus()) ||
+                    "trialing".equalsIgnoreCase(sub.getStatus());
+
             boolean willCancel = sub.isCancelAtPeriodEnd();
 
             return UserSubscriptionResponseDTO.builder()
@@ -236,11 +274,26 @@ public class UserService {
         UserEntity user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
+        // =================================================================
+        // 1. REGISTRAR EL CORREO PARA PREVENIR ABUSO DE TRIALS EN EL FUTURO
+        // =================================================================
+        if (!deletedAccountRepository.existsByEmail(user.getEmail())) {
+            DeletedAccountEntity deletedAccount = DeletedAccountEntity.builder()
+                    .email(user.getEmail())
+                    .build();
+            deletedAccountRepository.save(deletedAccount);
+        }
+
+        // =================================================================
+        // 2. ELIMINAR EL CLIENTE DE STRIPE
+        // =================================================================
         if (user.getStripeCustomerId() != null && !user.getStripeCustomerId().isEmpty()) {
             try {
                 Customer stripeCustomer = Customer.retrieve(user.getStripeCustomerId());
                 stripeCustomer.delete();
             } catch (StripeException e) {
+                // Solo imprimimos la advertencia. Si Stripe falla (ej. el usuario ya fue
+                // borrado manualmente desde el Dashboard), no queremos que aborte el proceso local.
                 System.err.println("Advertencia al borrar en Stripe: " + e.getMessage());
             }
         }

@@ -31,6 +31,7 @@ public class PlanController {
         return ResponseEntity.ok(plans);
     }
 
+   ////////////////////////// Mapea el plan de la base de datos de la tabla users ///////////////////////////
     @GetMapping("/me/usage")
     public ResponseEntity<UsageResponseDTO> getUserUsage() {
         UserEntity currentUser = userService.getCurrentAuthenticatedUser();
@@ -63,6 +64,10 @@ public class PlanController {
                 .canUseMiniApps(planDef.isCanUseMiniApps())
                 .canUseGenerator(planDef.isCanUseGenerator())
                 .canUseEducational(planDef.isCanUseEducational())
+                .canUseAnalysis(planDef.isCanUseAnalysis())
+                .canUseSustento(planDef.isCanUseSustento())
+                .canUseSemantic(planDef.isCanUseSemantic())
+                .canUseMagic(planDef.isCanUseMagic())
 
                 // Datos estadísticos (ya no bloquean, solo informan)
                 .queriesUsed(usage.getQueriesUsedToday() != null ? usage.getQueriesUsedToday() : 0)
