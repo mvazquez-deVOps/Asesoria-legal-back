@@ -5,16 +5,28 @@ import lombok.Getter;
 @Getter
 public enum JuxaPlanDef {
 
-    // (dbName, maxTokens, aiModel, canUploadAudio, canUploadVideo, hasFullHistory)
-    FREE("FREE", 50000, "gemini-2.5-flash", false, false, false, false, false, false, false, false, false, false, false), // 50k tokens (aprox. 30 interacciones simples)
-    ESTUDIANTES("estudiantes", 250000, "gemini-2.5-flash", false, false, false, false, false, false, true, false, false, false, false),
-    JUXA_GO("juxa_go", /*500000*/ 7003, "gemini-2.5-flash", false, false, false, true, true, true, true, false, false, false, true),
-    ESENCIAL("esencial_junior", 1000000, "gemini-2.5-flash", false, false, true, true, true, true, true, true, false, true, true),
-    PRO("intermedio_pro", 2000000, "gemini-2.5-pro", true, false, true, true, true, true, true, true, true, false, true),
-    ELITE("premium_elite", -1, "gemini-2.5-pro", true, true, true, true, true, true, true, true, true, true, true); // -1 = Ilimitado (Uso justo)
+    // (dbName, maxTokens, aiModel, canUploadAudio, canUploadVideo, hasFullHistory, canUseMiniApps, canUseGenerator, canUseProxy, canUseEducational, canUseAnalysis, canUseSustento, canUseSemantic, canUseMagic, 16 Herramientas extras...)
+
+    FREE("FREE", 50000, "gemini-2.5-flash", false, false, false, false, false, false, false, false, false, false, false,
+            true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false),
+
+    ESTUDIANTES("estudiantes", 250000, "gemini-2.5-flash", false, false, false, false, false, false, true, false, false, false, false,
+            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false),
+
+    JUXA_GO("juxa_go", 7003, "gemini-2.5-flash", false, false, false, true, true, true, true, false, false, false, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true),
+
+    ESENCIAL("esencial_junior", 1000000, "gemini-2.5-flash", false, false, true, true, true, true, true, true, false, true, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true),
+
+    PRO("intermedio_pro", 2000000, "gemini-2.5-pro", true, false, true, true, true, true, true, true, true, false, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true),
+
+    ELITE("premium_elite", -1, "gemini-2.5-pro", true, true, true, true, true, true, true, true, true, true, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true);
 
     private final String dbName;
-    private final int maxTokens; // Ahora el límite es por Tokens
+    private final int maxTokens;
     private final String aiModel;
     private final boolean canUploadAudio;
     private final boolean canUploadVideo;
@@ -28,10 +40,33 @@ public enum JuxaPlanDef {
     private final boolean canUseSemantic;
     private final boolean canUseMagic;
 
+    // --- Campos para miniApps ---
+    private final boolean canUseExam;
+    private final boolean canUseGuide;
+    private final boolean canUseEvidenceValidator;
+    private final boolean canUseTipicidad;
+    private final boolean canUseMedidasCautelares;
+    private final boolean canUseTraductorDocumentosLegales;
+    private final boolean canUseGeneradorInterrogatorios;
+    private final boolean canUseRevisorInterrogatorios;
+    private final boolean canUsePdfMerger;
+    private final boolean canUseZipManager;
+    private final boolean canUseFileCompressor;
+    private final boolean canUseCollectionKpi;
+    private final boolean canUsePagareGenerator;
+    private final boolean canUseClauseGenerator;
+    private final boolean canUseCollectionLetter;
+    private final boolean canUseCartaPoder;
 
+    JuxaPlanDef(String dbName, int maxTokens, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory,
+                boolean canUseMiniApps, boolean canUseGenerator, boolean canUseProxy, boolean canUseEducational, boolean canUseAnalysis,
+                boolean canUseSustento, boolean canUseSemantic, boolean canUseMagic,
+                boolean canUseExam, boolean canUseGuide, boolean canUseEvidenceValidator, boolean canUseTipicidad,
+                boolean canUseMedidasCautelares, boolean canUseTraductorDocumentosLegales, boolean canUseGeneradorInterrogatorios,
+                boolean canUseRevisorInterrogatorios, boolean canUsePdfMerger, boolean canUseZipManager, boolean canUseFileCompressor,
+                boolean canUseCollectionKpi, boolean canUsePagareGenerator, boolean canUseClauseGenerator,
+                boolean canUseCollectionLetter, boolean canUseCartaPoder) {
 
-
-    JuxaPlanDef(String dbName, int maxTokens, String aiModel, boolean canUploadAudio, boolean canUploadVideo, boolean hasFullHistory, boolean canUseMiniApps, boolean canUseGenerator, boolean canUseProxy, boolean canUseEducational, boolean canUseAnalysis, boolean canUseSustento, boolean canUseSemantic, boolean canUseMagic) {
         this.dbName = dbName;
         this.maxTokens = maxTokens;
         this.aiModel = aiModel;
@@ -47,7 +82,22 @@ public enum JuxaPlanDef {
         this.canUseSemantic = canUseSemantic;
         this.canUseMagic = canUseMagic;
 
-
+        this.canUseExam = canUseExam;
+        this.canUseGuide = canUseGuide;
+        this.canUseEvidenceValidator = canUseEvidenceValidator;
+        this.canUseTipicidad = canUseTipicidad;
+        this.canUseMedidasCautelares = canUseMedidasCautelares;
+        this.canUseTraductorDocumentosLegales = canUseTraductorDocumentosLegales;
+        this.canUseGeneradorInterrogatorios = canUseGeneradorInterrogatorios;
+        this.canUseRevisorInterrogatorios = canUseRevisorInterrogatorios;
+        this.canUsePdfMerger = canUsePdfMerger;
+        this.canUseZipManager = canUseZipManager;
+        this.canUseFileCompressor = canUseFileCompressor;
+        this.canUseCollectionKpi = canUseCollectionKpi;
+        this.canUsePagareGenerator = canUsePagareGenerator;
+        this.canUseClauseGenerator = canUseClauseGenerator;
+        this.canUseCollectionLetter = canUseCollectionLetter;
+        this.canUseCartaPoder = canUseCartaPoder;
     }
 
     public static JuxaPlanDef fromString(String planName) {
@@ -59,5 +109,32 @@ public enum JuxaPlanDef {
             }
         }
         return FREE;
+    }
+
+    // Método para validar dinámicamente según el nombre recibido del frontend
+    public boolean isToolAllowed(String toolName) {
+        if (toolName == null || toolName.trim().isEmpty()) {
+            return false;
+        }
+
+        return switch (toolName.toLowerCase()) {
+            case "exam" -> this.canUseExam;
+            case "guide" -> this.canUseGuide;
+            case "evidence-validator" -> this.canUseEvidenceValidator;
+            case "tipicidad" -> this.canUseTipicidad;
+            case "medidas-cautelares" -> this.canUseMedidasCautelares;
+            case "traductor-documentos-legales" -> this.canUseTraductorDocumentosLegales;
+            case "generador-interrogatorios" -> this.canUseGeneradorInterrogatorios;
+            case "revisor-interrogatorios" -> this.canUseRevisorInterrogatorios;
+            case "pdf-merger" -> this.canUsePdfMerger;
+            case "zip-manager" -> this.canUseZipManager;
+            case "file-compressor" -> this.canUseFileCompressor;
+            case "collection-kpi" -> this.canUseCollectionKpi;
+            case "pagare-generator" -> this.canUsePagareGenerator;
+            case "clause-generator" -> this.canUseClauseGenerator;
+            case "collection-letter" -> this.canUseCollectionLetter;
+            case "carta-poder" -> this.canUseCartaPoder;
+            default -> false; // Si envían algo que no existe, se bloquea por defecto
+        };
     }
 }

@@ -6,8 +6,10 @@ import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
 import com.juxa.legal_advice.config.JuxaPlanDef;
+import com.juxa.legal_advice.config.exceptions.AppNotAllowedForSubscriptionException;
 import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
+import com.juxa.legal_advice.dto.ProxyGenerateRequest;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.UserEntity;
 import com.juxa.legal_advice.repository.UserRepository;
@@ -141,7 +143,7 @@ public class AiController {
         }
     }
     @PostMapping("/proxy-generate")
-    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody Map<String, String> payload) {
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody ProxyGenerateRequest payload) {
         try {
             // 1. Identificar al usuario autenticado
             UserEntity currentUser = userService.getCurrentAuthenticatedUser();
@@ -149,12 +151,15 @@ public class AiController {
             // 2. Validar si su plan permite el uso de herramientas Proxy (Editor/Mini Apps)
             JuxaPlanDef planDef = JuxaPlanDef.fromString(currentUser.getSubscriptionPlan());
 
-            if (!planDef.isCanUseProxy()) {
-                throw new PlanLimitExceededException("Tu plan " + planDef.getDbName() + " no incluye el uso de herramientas avanzadas.");
+            String toolName = payload.getToolName(); // <-- NUEVO: El frontend debe enviarlo
+
+            // 3. Validar si su plan permite el uso de la app/herramienta específica
+            if (!planDef.isToolAllowed(toolName)) {
+                throw new AppNotAllowedForSubscriptionException("Tu nivel de suscripción (" + planDef.getDbName() + ") no permite el uso de la herramienta: " + toolName + ". Mejora tu plan para acceder.");
             }
 
             // 3. Validación de saldo de Tokens antes de la llamada
-            String prompt = payload.get("prompt");
+            String prompt = payload.getPrompt();
             // Usamos el servicio existente para asegurar que tiene saldo
             usageAuthService.validateSufficientTokens(currentUser, prompt, "", "");
 
@@ -183,8 +188,10 @@ public class AiController {
             Map<String, Object> response = new HashMap<>();
             response.put("rawResponse", cleanText);
             return ResponseEntity.ok(response);
-
-        } catch (PlanLimitExceededException e) {
+        }catch (AppNotAllowedForSubscriptionException e) {
+            throw e;
+        }
+        catch (PlanLimitExceededException e) {
             // El GlobalExceptionHandler ya maneja esto como un 403 Forbidden
             throw e;
         } catch (UnauthorizedUserException e) {
