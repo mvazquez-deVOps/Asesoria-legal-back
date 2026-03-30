@@ -42,9 +42,9 @@ public class JwtFilter extends OncePerRequestFilter {
                 uri.contains("/api/ai/chat") ||
                 uri.startsWith("/api/ai/generate-initial-diagnosis") ||
                 uri.contains("/api/ai/architect") ||
-                uri.startsWith("/api/auth")) {
-                uri.equals("/api/payments/webhook"))
-            filterChain.doFilter(request, response);
+                uri.startsWith("/api/auth") ||
+                uri.equals("/api/payments/webhook")){
+                filterChain.doFilter(request, response);
             return;
         }
         System.out.println("JwtFilter interceptando URI: " + request.getRequestURI());

@@ -8,8 +8,8 @@ public enum JuxaPlanDef {
     // (dbName, maxTokens, aiModel, canUploadAudio, canUploadVideo, hasFullHistory)
     FREE("FREE", 50000, "gemini-2.5-flash", false, false, false, false, false, false, false, false, false, false, false), // 50k tokens (aprox. 30 interacciones simples)
     ESTUDIANTES("estudiantes", 250000, "gemini-2.5-flash", false, false, false, false, false, false, true, false, false, false, false),
-    JUXA_GO("juxa_go", /*500000*/ 7003, "gemini-2.5-flash", false, false, false, true, true, true, true, false, false, false, true),
-    ESENCIAL("esencial_junior", 1000000, "gemini-2.5-flash", false, false, true, true, true, true, true, true, false, true, true),
+    JUXA_GO("juxa_go", 500000 , "gemini-2.5-flash", false, false, false, true, true, true, true, false, false, false, false),
+    ESENCIAL("esencial_junior", 1000000, "gemini-2.5-flash", false, false, true, true, true, true, true, true, true, true, true),
     PRO("intermedio_pro", 2000000, "gemini-2.5-pro", true, false, true, true, true, true, true, true, true, false, true),
     ELITE("premium_elite", -1, "gemini-2.5-pro", true, true, true, true, true, true, true, true, true, true, true); // -1 = Ilimitado (Uso justo)
 
