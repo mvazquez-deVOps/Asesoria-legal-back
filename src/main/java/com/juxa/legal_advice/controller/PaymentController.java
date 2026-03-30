@@ -12,6 +12,7 @@ import com.juxa.legal_advice.model.PlanEntity;
 import com.juxa.legal_advice.service.payment.PaymentService;
 import com.juxa.legal_advice.service.payment.StripeWebhookService; // Asegúrate de importar esto
 import com.stripe.param.CustomerCreateParams;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;///////////////////////////////////////////////////////////
 import org.slf4j.LoggerFactory;/////////////////////////////////////
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,11 +34,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+
+@Slf4j // <-- Lombok genera el Logger automáticamente
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor // <-- Esto crea el constructor automáticamente para todas las variables 'final'
 public class PaymentController {
-    private static final Logger log = LoggerFactory.getLogger(PaymentController.class); ////////////////
 
     private final PaymentService paymentService;
     private final StripeWebhookService stripeWebhookService;
@@ -73,11 +75,13 @@ public class PaymentController {
                 // Guardamos el nuevo ID en MySQL
                 user.setStripeCustomerId(stripeCustomerId);
                 userRepository.save(user);
+                log.info("Customer creado exitosamente en Stripe. customerId={}", stripeCustomerId);
             }
 
             // 2. EXTRAER PLAN DE LA BDd
             // Nota: Escribe el nombre exactamente como está en la columna 'name' de tu tabla plans
             PlanEntity plan = planService.getPlanByName("juxa_go");
+            log.debug("Plan obtenido: planId={}, stripePriceId={}", plan.getId(), plan.getStripePriceId());
 
             // 3. CONSTRUIR SESIÓN CON METADATA PARA EL WEBHOOK
             SessionCreateParams params = SessionCreateParams.builder()
@@ -111,8 +115,7 @@ public class PaymentController {
             return ResponseEntity.ok(Map.of("url", session.getUrl()));
 
         } catch (Exception e) {
-            System.err.println("--- [ERROR CREANDO CHECKOUT] --- " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error crítico creando Trial Checkout. Detalle: {}", e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
@@ -120,7 +123,6 @@ public class PaymentController {
     // 👇 AÑADIR ESTE ENDPOINT PARA LA COMPRA DE TOKENS
     @PostMapping("/buy-extra-500-tokens")
     public ResponseEntity<?> buyExtraTokens() {
-        log.error("sad");
         try {
             UserEntity user = userService.getCurrentAuthenticatedUser();
             String stripeCustomerId = user.getStripeCustomerId();
@@ -171,7 +173,7 @@ public class PaymentController {
             return ResponseEntity.ok(Map.of("url", session.getUrl()));
 
         } catch (Exception e) {
-            log.error("Error creando checkout de tokens: {}", e.getMessage());
+            log.error("Error creando checkout de tokens (500). Detalle: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
@@ -212,9 +214,9 @@ public class PaymentController {
             return ResponseEntity.ok(resultado);
 
         } catch (Exception e) {
-            System.err.println("Error procesando el webhook: " + e.getMessage());
-            // Si algo falla, retornamos un HTTP 400 Bad Request
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error en webhook: " + e.getMessage());
+            // Pasamos 'e' al final para que GCP atrape el StackTrace
+            log.error("Fallo crítico validando la firma del webhook de Stripe.", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error procesando evento de pago.");
         }
     }
 
@@ -223,10 +225,10 @@ public class PaymentController {
         try {
             PortalResponseDTO response = paymentService.createCustomerPortalSession(request.getUserId());
             return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            log.error("Error creando el portal de cliente: {}", e.getMessage());
-            // Si el usuario no tiene Customer ID u ocurre otro error, devolvemos un 400
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            // Fallo del servidor o Stripe (HTTP 500)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Ocurrió un error interno al conectar con el servidor de pagos."));
         }
     }
 
@@ -241,14 +243,9 @@ public class PaymentController {
             // Devuelve un JSON para el Front
             return ResponseEntity.ok(Map.of("message", resultMessage));
 
-        } catch (RuntimeException e) {
-            // Si la suscripción ya estaba cancelada o no se encontró, devolvemos un error 400
-            log.error("Error al cancelar la suscripción del usuario: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-
         } catch (Exception e) {
-            // Fallback para errores de conectividad con Stripe o servidor
-            log.error("Error inesperado al cancelar la suscripción", e);
+            // Ya logueamos el detalle técnico (StackTrace) dentro del PaymentService,
+            // así que aquí solo devolvemos un mensaje genérico al Front.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Ocurrió un error inesperado al conectar con el servidor de pagos."));
         }
@@ -307,10 +304,11 @@ public class PaymentController {
             return ResponseEntity.ok(Map.of("url", session.getUrl()));
 
         } catch (IllegalArgumentException e) {
+            log.warn("El frontend solicitó un paquete de tokens inválido: {}", request.getPackageName());
             // Captura el error si el frontend manda un nombre de paquete que no existe
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.error("Error creando checkout de tokens: {}", e.getMessage());
+            log.error("Error creando checkout dinámico de tokens. Detalle: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }

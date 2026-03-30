@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+    <include resource="com/google/cloud/spring/logging/logback-json-appender.xml" />
+    <appender name="CLOUD" class="com.google.cloud.logging.logback.LoggingAppender">
+        <log>application.log</log>
+        <flushLevel>WARN</flushLevel>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
+   <!-- texto del comentario  <root level="INFO">       Sirve para que los logs se suban a la seccion de logs en GCP
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="CLOUD"/> </root>
+        -->
