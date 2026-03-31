@@ -4,74 +4,51 @@ import com.juxa.legal_advice.dto.*;
 import com.juxa.legal_advice.service.AuthService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.Map;
 
+@Slf4j // Agregamos Lombok para logs si los necesitas aquí
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor // Inyecta automáticamente userService y authService
+@RequiredArgsConstructor
 public class AuthController {
 
     private final UserService userService;
-    private final AuthService authService; // <--- AGREGA ESTA LÍNEA PARA QUITAR EL ROJO
-    @Value("${google.client.id}")
-    private String googleClientId;
+    private final AuthService authService;
 
     @PostMapping("/google")
-    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> request) {
-        String idTokenString = request.get("token"); // El token que envía el Front
-        try {
-            // Este método validará el token y creará/logueará al usuario
-            AuthResponseDTO response = authService.verifyGoogleToken(idTokenString);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Token de Google inválido", "message", e.getMessage()));
-        }
+    public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody Map<String, String> request) throws Exception {
+        String idTokenString = request.get("token");
+        // Si falla, el servicio lanza InvalidCredentialsException y el GlobalHandler responde 401
+        return ResponseEntity.ok(authService.verifyGoogleToken(idTokenString));
     }
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequestDTO credentials) {
-        try {
-            AuthResponseDTO response = userService.authenticate(credentials);
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Acceso denegado", "message", e.getMessage()));
-        }
+    public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO credentials) {
+        return ResponseEntity.ok(userService.authenticate(credentials));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
-        try {
-            String cleanEmail = registration.getEmail().trim().toLowerCase();
-            registration.setEmail(cleanEmail);
-            // Ahora 'authService' ya no marcará error porque está declarado arriba
-            AuthResponseDTO response = authService.register(registration);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Error en registro", "message", e.getMessage()));
-        }
+    public ResponseEntity<AuthResponseDTO> register(@RequestBody UserRegistrationDTO registration) {
+        registration.setEmail(registration.getEmail().trim().toLowerCase());
+        return ResponseEntity.ok(authService.register(registration));
     }
 
-    @GetMapping("/profile/{id}")
-    public ResponseEntity<UserDataDTO> getUserProfile(@PathVariable String id) {
-        UserDataDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
-    }
     @PutMapping("/update-person-type")
-    public ResponseEntity<?> updatePersonType(@RequestBody Map<String, String> request, Principal principal) {
-        String type = request.get("type");
-        String email = principal.getName();
-
-        userService.updatePersonType(email, type);
+    public ResponseEntity<Map<String, String>> updatePersonType(@RequestBody Map<String, String> request, Principal principal) {
+        userService.updatePersonType(principal.getName(), request.get("type"));
         return ResponseEntity.ok(Map.of("message", "Perfil actualizado correctamente"));
     }
+}
+
+
+
+        /*  Endpoint no usado actualmente.
+
     @PutMapping("/update-person-type/{id}")
     public ResponseEntity<?> updatePersonType(@PathVariable String id, @RequestBody Map<String, String> body) {
         // En el Front me mostraste que envías "personType"
@@ -86,7 +63,4 @@ public class AuthController {
                     .body(Map.of("error", "No se pudo actualizar", "message", e.getMessage()));
         }
     }
-
-
-
-}
+    */

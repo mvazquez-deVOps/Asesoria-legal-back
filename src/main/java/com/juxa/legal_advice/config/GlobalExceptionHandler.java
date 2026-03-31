@@ -2,6 +2,9 @@ package com.juxa.legal_advice.config;
 
 import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
+import com.juxa.legal_advice.config.exceptions.auth.DuplicateResourceException;
+import com.juxa.legal_advice.config.exceptions.auth.InvalidCredentialsException;
+import com.juxa.legal_advice.config.exceptions.auth.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -60,6 +63,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleGeneralException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "error", "Error Interno del Servidor",
+                "message", ex.getMessage()
+        ));
+    }
+
+    // ... tus manejadores actuales (PlanLimitExceededException, etc) ...
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleNotFound(ResourceNotFoundException ex) {
+        log.warn("Recurso no encontrado: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "No Encontrado",
+                "message", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException ex) {
+        log.warn("Intento de acceso fallido: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "error", "Acceso Denegado",
+                "message", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, String>> handleDuplicateResource(DuplicateResourceException ex) {
+        log.warn("Conflicto de recursos: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "error", "Conflicto de Datos",
                 "message", ex.getMessage()
         ));
     }

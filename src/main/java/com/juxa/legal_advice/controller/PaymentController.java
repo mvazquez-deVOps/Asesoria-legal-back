@@ -235,7 +235,7 @@ public class PaymentController {
     }
 
     @PostMapping("/portal")
-    public ResponseEntity<?> createPortalSession() { // <-- Quitamos el RequestBody
+    public ResponseEntity<?> createPortalSession() {
         try {
             // 1. Obtenemos el usuario autenticado desde el Token (vía UserService)
             UserEntity user = userService.getCurrentAuthenticatedUser();

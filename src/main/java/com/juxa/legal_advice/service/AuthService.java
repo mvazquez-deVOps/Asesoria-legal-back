@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.service;
 
+import com.juxa.legal_advice.config.exceptions.auth.InvalidCredentialsException;
 import com.juxa.legal_advice.dto.AuthRequestDTO;
 import com.juxa.legal_advice.dto.AuthResponseDTO;
 import com.juxa.legal_advice.dto.UserRegistrationDTO;
@@ -116,8 +117,7 @@ public class AuthService {
                     .personType(user.getPersonType())
                     .build();
         } else {
-            throw new RuntimeException("El token de Google no es válido o ha expirado.");
-        }
+            throw new InvalidCredentialsException("El token de Google proporcionado no es válido o ha expirado.");        }
     }
 
 

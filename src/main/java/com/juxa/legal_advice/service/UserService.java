@@ -1,4 +1,6 @@
 package com.juxa.legal_advice.service;
+import com.juxa.legal_advice.config.exceptions.auth.InvalidCredentialsException;
+import com.juxa.legal_advice.config.exceptions.auth.ResourceNotFoundException;
 import com.juxa.legal_advice.model.DeletedAccountEntity;
 import com.juxa.legal_advice.repository.DeletedAccountRepository;
 import com.juxa.legal_advice.config.JuxaPlanDef;
@@ -14,6 +16,7 @@ import com.juxa.legal_advice.security.JwtUtil;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +33,7 @@ import java.util.stream.Collectors;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -79,11 +82,12 @@ public class UserService {
     public AuthResponseDTO authenticate(AuthRequestDTO credentials) {
         // 1. Buscar usuario por email
         UserEntity user = userRepository.findByEmail(credentials.getEmail())
-                .orElseThrow(() -> new RuntimeException("El correo electrónico no está registrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("El correo electrónico no está registrado."));
 
         // 2. Validar contraseña con BCrypt
         if (!passwordEncoder.matches(credentials.getPassword(), user.getPassword())) {
-            throw new RuntimeException("La contraseña es incorrecta");
+            log.warn("Intento de login fallido para el usuario: {}", credentials.getEmail());
+            throw new InvalidCredentialsException("La contraseña es incorrecta.");
         }
 
         // 3. Actualizar estadísticas de sesión
@@ -182,29 +186,8 @@ public class UserService {
     }    /**
      * Proceso de Registro de nuevos usuarios
      */
-    @Transactional
-    public UserEntity register(UserRegistrationDTO dto) {
-        // 1. Validar si el email ya existe
-        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new RuntimeException("Este correo ya se encuentra registrado");
-        }
 
-        // 2. Crear nueva entidad
-        UserEntity newUser = new UserEntity();
-        newUser.setName(dto.getName());
-        newUser.setEmail(dto.getEmail());
-        newUser.setPhone(dto.getPhone());
 
-        // 3. Encriptar contraseña antes de guardar
-        newUser.setPassword(passwordEncoder.encode(dto.getPassword()));
-
-        // 4. Valores por defecto
-        newUser.setRole("USER");
-        newUser.setLoginCount(0);
-        newUser.setSubscriptionPlan("BASIC");
-
-        return userRepository.save(newUser);
-    }
 
     /**
      * Obtener datos de perfil
@@ -268,35 +251,25 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("Usuario autenticado no encontrado en la base de datos."));
     }
 
-    // -- Eliminar usuarios de la base de datos y de Stripe --
     @Transactional(rollbackFor = Exception.class)
     public void deleteUserCompletely(Long id) {
         UserEntity user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado en la base de datos"));
 
-        // =================================================================
-        // 1. REGISTRAR EL CORREO PARA PREVENIR ABUSO DE TRIALS EN EL FUTURO
-        // =================================================================
         if (!deletedAccountRepository.existsByEmail(user.getEmail())) {
-            DeletedAccountEntity deletedAccount = DeletedAccountEntity.builder()
-                    .email(user.getEmail())
-                    .build();
-            deletedAccountRepository.save(deletedAccount);
+            deletedAccountRepository.save(DeletedAccountEntity.builder().email(user.getEmail()).build());
         }
 
-        // =================================================================
-        // 2. ELIMINAR EL CLIENTE DE STRIPE
-        // =================================================================
         if (user.getStripeCustomerId() != null && !user.getStripeCustomerId().isEmpty()) {
             try {
                 Customer stripeCustomer = Customer.retrieve(user.getStripeCustomerId());
                 stripeCustomer.delete();
             } catch (StripeException e) {
-                // Solo imprimimos la advertencia. Si Stripe falla (ej. el usuario ya fue
-                // borrado manualmente desde el Dashboard), no queremos que aborte el proceso local.
-                System.err.println("Advertencia al borrar en Stripe: " + e.getMessage());
+                log.warn("No se pudo eliminar el cliente en Stripe (puede que ya no exista). CustomerId: {}, Razón: {}",
+                        user.getStripeCustomerId(), e.getMessage());
             }
         }
         userRepository.delete(user);
+        log.info("Usuario eliminado completamente de la base de datos: ID {}", id);
     }
 }
