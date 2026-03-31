@@ -1,7 +1,9 @@
 package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.config.TokenPackageDef;
-import com.juxa.legal_advice.dto.PortalRequestDTO;
+import com.juxa.legal_advice.config.exceptions.payment.InvalidStripePayloadException;
+import com.juxa.legal_advice.config.exceptions.payment.InvalidWebhookSignatureException;
+import com.juxa.legal_advice.config.exceptions.payment.WebhookSyncException;
 import com.juxa.legal_advice.dto.PortalResponseDTO;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.dto.payment.CheckoutRequestDTO;
@@ -115,8 +117,10 @@ public class PaymentController {
             return ResponseEntity.ok(Map.of("url", session.getUrl()));
 
         } catch (Exception e) {
-            log.error("Error crítico creando Trial Checkout. Detalle: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            // Guardamos el error real en GCP, devolvemos un mensaje genérico al usuario
+            log.error("Error crítico creando Trial Checkout.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "No se pudo iniciar el proceso de prueba. Intenta más tarde."));
         }
     }
 
@@ -207,26 +211,41 @@ public class PaymentController {
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
         try {
-            // Guardamos el mensaje que nos regresa el servicio
             String resultado = stripeWebhookService.handleWebhook(payload, sigHeader);
-
-            // Retornamos un HTTP 200 OK con el mensaje en el body
             return ResponseEntity.ok(resultado);
 
+        } catch (InvalidWebhookSignatureException e) {
+            log.error("Firma de Stripe inválida.", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Firma inválida.");
+
+        } catch (InvalidStripePayloadException e) {
+            log.error("Payload de Stripe inválido o faltan datos críticos.", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Payload inválido.");
+
+        } catch (WebhookSyncException e) {
+            // Enviar todo el Stack Trace a GCP. Y retornamos 500 para que Stripe REINTENTE
+            log.error("Error de sincronización con BD al procesar Webhook.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error de sincronización, reintentar más tarde.");
+
         } catch (Exception e) {
-            // Pasamos 'e' al final para que GCP atrape el StackTrace
-            log.error("Fallo crítico validando la firma del webhook de Stripe.", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error procesando evento de pago.");
+            // Cualquier otro fallo inesperado
+            log.error("Error crítico inesperado procesando webhook de Stripe.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno del servidor.");
         }
     }
 
     @PostMapping("/portal")
-    public ResponseEntity<?> createPortalSession(@RequestBody PortalRequestDTO request) {
+    public ResponseEntity<?> createPortalSession() { // <-- Quitamos el RequestBody
         try {
-            PortalResponseDTO response = paymentService.createCustomerPortalSession(request.getUserId());
+            // 1. Obtenemos el usuario autenticado desde el Token (vía UserService)
+            UserEntity user = userService.getCurrentAuthenticatedUser();
+
+            // 2. Usamos su ID interno para generar la sesión del portal
+            PortalResponseDTO response = paymentService.createCustomerPortalSession(user.getId());
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            // Fallo del servidor o Stripe (HTTP 500)
+            log.error("Error al crear sesión del portal para el usuario", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Ocurrió un error interno al conectar con el servidor de pagos."));
         }
@@ -305,11 +324,12 @@ public class PaymentController {
 
         } catch (IllegalArgumentException e) {
             log.warn("El frontend solicitó un paquete de tokens inválido: {}", request.getPackageName());
-            // Captura el error si el frontend manda un nombre de paquete que no existe
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Paquete de tokens inválido."));
         } catch (Exception e) {
-            log.error("Error creando checkout dinámico de tokens. Detalle: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+            // Log corregido y respuesta segura
+            log.error("Error creando checkout dinámico de tokens.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error procesando la solicitud de compra."));
         }
     }
 }
