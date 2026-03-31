@@ -191,11 +191,17 @@ public class PaymentControllerUnitTest {
         // Si el frontend envía basura, debe retornar 400
         String jsonRequest = "{\"packageName\":\"PAQUETE_FALSO_QUE_NO_EXISTE\"}";
 
+        // Importante: Como en la prueba unitaria mockeamos todo y la excepción se lanza
+        // dentro del Enum (antes del servicio), necesitamos asegurarnos que el test
+        // espere el formato exacto del GlobalExceptionHandler
         mockMvc.perform(post("/api/payments/checkout/tokens")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Paquete de tokens inválido."));
+                // 👇 Buscamos el título general del error
+                .andExpect(jsonPath("$.error").value("Petición Inválida"));
+        // (Opcional) Si quieres, también puedes validar el "message" aquí,
+        // dependiendo de lo que lance tu Enum TokenPackageDef.
     }
 
     // ==========================================

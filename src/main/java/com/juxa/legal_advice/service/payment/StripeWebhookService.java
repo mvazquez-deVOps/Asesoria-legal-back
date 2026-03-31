@@ -1,5 +1,6 @@
 package com.juxa.legal_advice.service.payment;
 
+import com.juxa.legal_advice.config.exceptions.auth.ResourceNotFoundException;
 import com.juxa.legal_advice.config.exceptions.payment.InvalidStripePayloadException;
 import com.juxa.legal_advice.config.exceptions.payment.InvalidWebhookSignatureException;
 import com.juxa.legal_advice.config.exceptions.payment.WebhookSyncException;
@@ -254,8 +255,7 @@ public class StripeWebhookService {
 //                     log.error("❌ [PASO 6 - ERROR] La suscripción {} AÚN NO EXISTE en DB.", finalSubscriptionId);
 //                     log.error("💡 EXPLICACIÓN: Stripe mandó 'invoice.paid' ANTES de que se guardara la suscripción.");
 //                     log.info("=========================================================");
-                    throw new RuntimeException("Suscripción no encontrada en DB. Forzando reintento del webhook de pago.");
-                });
+                    throw new WebhookSyncException("Suscripción " + finalSubscriptionId + " no encontrada en DB. Forzando reintento del webhook.");                });
     }
 
     private void handleSubscriptionUpdate(Subscription eventSub) throws StripeException {
@@ -323,8 +323,7 @@ public class StripeWebhookService {
 
         if (userIdStr == null || tokenAmountStr == null) {
 //             log.error("❌ GRAVE: Faltan datos en la metadata para sumar los tokens. user_id={}, token_amount={}", userIdStr, tokenAmountStr);
-            throw new RuntimeException("Metadata inválida para compra de tokens");
-        }
+            throw new InvalidStripePayloadException("Faltan datos en la metadata (user_id o token_amount) para sumar tokens.");        }
 
         Long userId = Long.parseLong(userIdStr);
         int tokensToAdd = Integer.parseInt(tokenAmountStr);
@@ -333,8 +332,7 @@ public class StripeWebhookService {
 
         // 1. Buscamos al usuario para poder relacionarlo con el nuevo registro si es necesario
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + userId));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + userId));
         // 2. Buscamos el registro de uso del plan. Si NO existe, lo creamos nuevo.
         PlanUsageEntity usage = planUsageRepository.findByUserId(userId)
                 .orElseGet(() -> {

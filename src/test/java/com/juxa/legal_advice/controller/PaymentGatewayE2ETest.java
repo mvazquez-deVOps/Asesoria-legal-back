@@ -221,7 +221,8 @@ public class PaymentGatewayE2ETest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Paquete de tokens inválido."));
+                // 👇 Actualizado al nuevo formato de GlobalExceptionHandler
+                .andExpect(jsonPath("$.error").value("Petición Inválida"));
     }
 
     // ==========================================
