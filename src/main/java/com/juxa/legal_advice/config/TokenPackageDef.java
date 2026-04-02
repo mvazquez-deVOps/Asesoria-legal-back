@@ -6,7 +6,7 @@ public enum TokenPackageDef {
     BOLSA_RESOLUCION("bolsa_resolucion", "Bolsa Resolución", 900000L),
     BOLSA_ESTRATEGA("bolsa_estratega", "Bolsa Estratega", 1500000L),
     BOLSA_LITIGIO_ACTIVO("bolsa_litigio_activo", "Bolsa Litigio Activo", 3200000L),
-    BOLSA_EXPEDIENTES("bolsa_expedientes", "Bolsa Expedientes", 6300000L),
+    BOLSA_EXPEDIENTES("bolsa_expedientes", "Bolsa Expedientes", 6000000L),
     BOLSA_OPERACION_TOTAL("bolsa_operacion_total", "Bolsa Operación Total", 8500000L),
     BOLSA_INFRAESTRUCTURA("bolsa_infraestructura", "Bolsa Infraestructura", 12000000L);
 
