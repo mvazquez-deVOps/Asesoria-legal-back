@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.config;
 
 import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
+import com.juxa.legal_advice.config.exceptions.TokenConfirmationRequiredException;
 import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,5 +63,14 @@ public class GlobalExceptionHandler {
                 "error", "Error Interno del Servidor",
                 "message", ex.getMessage()
         ));
+    }
+
+    @ExceptionHandler(TokenConfirmationRequiredException.class)
+    public ResponseEntity<Map<String, String>> handleTokenConfirmationRequired(TokenConfirmationRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "error", "CONFIRMATION_REQUIRED",
+                "message", ex.getMessage()
+        ));
+
     }
 }

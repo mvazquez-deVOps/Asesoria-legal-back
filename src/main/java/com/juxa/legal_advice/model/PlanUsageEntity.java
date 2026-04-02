@@ -3,6 +3,8 @@ package com.juxa.legal_advice.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "plan_usage")
@@ -46,5 +48,16 @@ public class PlanUsageEntity {
         if (this.lastResetDate == null) {
             this.lastResetDate = LocalDate.now();
         }
+    }
+
+    @OneToMany(mappedBy = "planUsage", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<TokenPurchaseEntity> tokenPurchases = new ArrayList<>();
+
+    // Este método sumaría el saldo total de todas las bolsitas vigentes
+    public int getTotalExtraTokensAvailable() {
+        return tokenPurchases.stream()
+                .filter(p -> !p.isExpired() && p.getRemainingAmount() > 0)
+                .mapToInt(TokenPurchaseEntity::getRemainingAmount)
+                .sum();
     }
 }

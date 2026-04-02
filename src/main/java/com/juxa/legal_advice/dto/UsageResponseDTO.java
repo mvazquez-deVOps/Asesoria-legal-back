@@ -19,7 +19,12 @@ public class UsageResponseDTO {
 
     // --- ESTADÍSTICAS (Informativo para el usuario) ---
     private Integer queriesUsed;
+    private int queriesLimit;
     private Integer filesUsed;
+
+ //-----------------------------------------INFORMATIVAS
+    private String docsAccessLabel;
+    private String constructorAccessLabel;
 
     // --- CAPACIDADES DEL MODELO ---
     private String aiModel;
@@ -38,4 +43,7 @@ public class UsageResponseDTO {
     private boolean canUseSustento;
     private boolean canUseSemantic;
     private boolean canUseMagic;
+    private boolean canUseConstructor;
+    private boolean canUseRedactor;
+
 }

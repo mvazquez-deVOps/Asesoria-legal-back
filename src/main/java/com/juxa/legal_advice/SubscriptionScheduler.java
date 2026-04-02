@@ -1,4 +1,4 @@
-package com.juxa.legal_advice.scheduler;
+package com.juxa.legal_advice;
 
 import com.juxa.legal_advice.service.UserService;
 import org.slf4j.Logger;
