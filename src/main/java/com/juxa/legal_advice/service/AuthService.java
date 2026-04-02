@@ -38,6 +38,9 @@ public class AuthService {
 
     @Transactional
     public AuthRegistrationResponseDTO register(UserRegistrationDTO dto) {
+     /*   if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+            throw new DuplicateResourceException("Este correo ya se encuentra registrado.");
+        }*/
         UserEntity user = new UserEntity();
         user.setName(dto.getName());
         user.setEmail(dto.getEmail());

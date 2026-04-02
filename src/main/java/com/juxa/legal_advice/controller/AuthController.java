@@ -1,7 +1,11 @@
 package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.*;
+import com.juxa.legal_advice.dto.resetPassword.ForgotPasswordRequestDTO;
+import com.juxa.legal_advice.dto.resetPassword.ResetPasswordRequestDTO;
+import com.juxa.legal_advice.dto.resetPassword.VerifyOtpRequestDTO;
 import com.juxa.legal_advice.service.AuthService;
+import com.juxa.legal_advice.service.PasswordResetService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,9 +20,9 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor // Inyecta automáticamente userService y authService
 public class AuthController {
-
+    private final PasswordResetService passwordResetService;
     private final UserService userService;
-    private final AuthService authService; // <--- AGREGA ESTA LÍNEA PARA QUITAR EL ROJO
+    private final AuthService authService;
     @Value("${google.client.id}")
     private String googleClientId;
 
@@ -101,6 +105,24 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequestDTO request) {
+        passwordResetService.requestPasswordReset(request.getEmail());
+        return ResponseEntity.ok("Si el correo existe, se ha enviado un código de recuperación.");
+    }
 
+    // NUEVO ENDPOINT: Solo verifica el código
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@RequestBody VerifyOtpRequestDTO request) {
+        passwordResetService.verifyOtp(request.getEmail(), request.getOtp());
+        return ResponseEntity.ok("Código verificado correctamente. Procede a ingresar tu nueva contraseña.");
+    }
 
+    // ENDPOINT MODIFICADO: Hace el cambio final
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequestDTO request) {
+        // El frontend debe enviar el email, el código (de nuevo) y la contraseña nueva
+        passwordResetService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
+        return ResponseEntity.ok("Contraseña actualizada exitosamente.");
+    }
 }
