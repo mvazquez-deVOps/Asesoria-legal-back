@@ -16,6 +16,7 @@ import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.model.Subscription;
 import com.stripe.param.SubscriptionUpdateParams;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class PaymentService {
 
@@ -130,9 +132,9 @@ public class PaymentService {
             return new PortalResponseDTO(portalSession.getUrl());
 
         } catch (StripeException e) {
-            throw new RuntimeException("Error en la API de Stripe al generar el portal: " + e.getMessage(), e);
-        } catch (Exception e) {
-            throw new RuntimeException("Error inesperado al generar el portal: " + e.getMessage(), e);
+            // 3. Fallo externo. Logueamos el error CON sus variables para GCP
+            log.error("La API de Stripe rechazó la creación del portal. userId={}, customerId={}", userId, customerId, e);
+            throw new RuntimeException("El servicio de pagos no está disponible en este momento.");
         }
     }
 
@@ -168,9 +170,8 @@ public class PaymentService {
                     + localSub.getCurrentPeriodEnd().toLocalDate().toString();
 
         } catch (StripeException e) {
-            throw new RuntimeException("Error de comunicación con Stripe al intentar cancelar: " + e.getMessage(), e);
-        } catch (Exception e) {
-            throw new RuntimeException("Error inesperado al cancelar la suscripción: " + e.getMessage(), e);
+            log.error("Fallo al comunicar cancelación a Stripe. userId={}, stripeSubId={}", userId, localSub.getStripeSubscriptionId(), e);
+            throw new RuntimeException("Error al procesar la cancelación con la pasarela de pago.");
         }
     }
 }

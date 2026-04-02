@@ -1,0 +1,5 @@
+####################### Logs y consola ###########################
+
+Para desplegegar en GCP tenemos que descomentar el archivo de logback-spring.xml ubicado en resources.
+También tenemos que poner en true los elementos que se encuentran en el bloque logs de application.properties
+
