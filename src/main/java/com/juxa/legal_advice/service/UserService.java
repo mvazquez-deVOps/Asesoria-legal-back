@@ -81,6 +81,10 @@ public class UserService {
         UserEntity user = userRepository.findByEmail(credentials.getEmail())
                 .orElseThrow(() -> new RuntimeException("El correo electrónico no está registrado"));
 
+        if (!user.isVerified()) {
+            throw new RuntimeException("Por favor, verifica tu correo electrónico antes de iniciar sesión.");
+        }
+
         // 2. Validar contraseña con BCrypt
         if (!passwordEncoder.matches(credentials.getPassword(), user.getPassword())) {
             throw new RuntimeException("La contraseña es incorrecta");

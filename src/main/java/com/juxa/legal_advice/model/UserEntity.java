@@ -93,5 +93,9 @@ public class UserEntity {
     private List<SubscriptionEntity> subscriptions;
 }
 
+    @Column(name = "is_verified", nullable = false)
+    private boolean isVerified = false;
+    }
+
 
 

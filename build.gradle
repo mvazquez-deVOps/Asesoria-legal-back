@@ -68,8 +68,6 @@ dependencies {
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 	implementation 'com.bucket4j:bucket4j-core:8.10.0'
 
-	implementation 'org.springframework.boot:spring-boot-starter-cache'
-
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
 

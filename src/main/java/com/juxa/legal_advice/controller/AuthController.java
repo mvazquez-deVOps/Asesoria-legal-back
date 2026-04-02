@@ -45,13 +45,27 @@ public class AuthController {
         }
     }
 
+    @GetMapping("/confirm")
+    public ResponseEntity<?> confirmUserAccount(@RequestParam("token") String token) {
+        boolean isConfirmed = authService.confirmEmail(token);
+
+        if (isConfirmed) {
+            return ResponseEntity.ok(Map.of("message", "¡Cuenta confirmada exitosamente! Ya puedes iniciar sesión."));
+            // Nota: Si tienes frontend, aquí podrías hacer un redirect (ej. RedirectView)
+            // hacia tu página de Login en React/Angular/Vue en lugar de devolver un JSON.
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "El enlace es inválido o ha expirado."));
+        }
+    }
+
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
         try {
             String cleanEmail = registration.getEmail().trim().toLowerCase();
             registration.setEmail(cleanEmail);
             // Ahora 'authService' ya no marcará error porque está declarado arriba
-            AuthResponseDTO response = authService.register(registration);
+            AuthRegistrationResponseDTO response = authService.register(registration);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
