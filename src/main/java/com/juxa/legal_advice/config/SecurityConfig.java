@@ -76,16 +76,24 @@ public class SecurityConfig {
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        // Añade el comodín para cubrir todos los endpoints de IA
-                        .requestMatchers("/api/ai/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll() // Login y Registro: LIBRES
+
+                        // --- CAMBIO CRÍTICO AQUÍ ---
+                        // Cambiamos permitAll() por authenticated()
+                        .requestMatchers("/api/ai/**").authenticated()
+                        .requestMatchers("/api/plans/**").authenticated()
+                        .requestMatchers("/api/users/me/**").authenticated()
+
                         .requestMatchers("/api/payments/webhook").permitAll()
-                        .requestMatchers("/api/v1/formats/**").authenticated()
                         .requestMatchers("/api/dashboard/initial-data").permitAll()
-                        .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
+
+                        // Todo lo demás que no esté arriba, requiere token
+                        .requestMatchers("/api/v1/formats/**").authenticated()
+                        .requestMatchers("/api/diagnoses/**").authenticated()
                         .requestMatchers("/api/pdf/**").authenticated()
                         .requestMatchers("/api/denuncias/**").authenticated()
+                        .requestMatchers("api/ai/proxy-generate/").authenticated()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

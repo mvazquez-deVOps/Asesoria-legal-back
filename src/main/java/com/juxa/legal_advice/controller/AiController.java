@@ -8,7 +8,7 @@ import com.google.cloud.storage.Storage;
 import com.juxa.legal_advice.config.JuxaPlanDef;
 import com.juxa.legal_advice.config.exceptions.AppNotAllowedForSubscriptionException;
 import com.juxa.legal_advice.config.exceptions.PlanLimitExceededException;
-import com.juxa.legal_advice.config.exceptions.UnauthorizedUserException;
+import com.juxa.legal_advice.config.exceptions.TokenConfirmationRequiredException;
 import com.juxa.legal_advice.dto.ProxyGenerateRequest;
 import com.juxa.legal_advice.dto.UserDataDTO;
 import com.juxa.legal_advice.model.UserEntity;
@@ -62,6 +62,7 @@ public class AiController {
     @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> chat(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestHeader(value = "X-Confirm-Token", defaultValue = "false") boolean isConfirmed,
             @RequestParam("message") String currentMessage,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam("userData") String userDataJson,
@@ -69,13 +70,14 @@ public class AiController {
         try {
             UserEntity currentUser = userService.getCurrentAuthenticatedUser();
 
-            // 1. Extraemos datos del JSON
-            Map<String, Object> userDataMap = objectMapper.readValue(userDataJson,
-                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-            List<Map<String, Object>> historyList = objectMapper.readValue(historyJson,
-                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            // 1. Definición del nombre de la herramienta para el Peaje
+            String toolName = "CHAT";
 
-            // 2. LECTURA NATIVA O EXTRACCIÓN (Para saber de qué tamaño es el monstruo)
+            // 2. Procesamiento de Datos del Usuario e Historial
+            Map<String, Object> userDataMap = objectMapper.readValue(userDataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            List<Map<String, Object>> historyList = objectMapper.readValue(historyJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+
+            // 3. Lógica de Archivos y OCR (Tu lógica original completa)
             String fileBase64 = null;
             String mimeType = null;
             String textoOcr = "";
@@ -88,18 +90,18 @@ public class AiController {
                     if (mimeType == null || mimeType.contains("octet-stream")) {
                         mimeType = filename.endsWith(".pdf") ? "application/pdf" : "image/jpeg";
                     }
-                    // Si es un Base64 (PDF/Img), asignamos un peso arbitrario alto para la estimación
-                    // Un PDF base suele pesar unos 3000 tokens en análisis visual
-                    textoOcr = "A".repeat(12000); // 12000 chars / 4 = 3000 tokens estimados
+                    textoOcr = "A".repeat(12000); // Buffer para análisis visual
                 } else {
                     textoOcr = geminiService.extractTextFromFile(file);
                 }
             }
 
-            // 3. PEAJE DE ENTRADA (La nueva validación heurística estilo ChatGPT)
-            usageAuthService.validateSufficientTokens(currentUser, currentMessage, textoOcr, historyJson);
+            // 4. Estimación de Tokens y Peaje de Entrada
+            int tokensInput = (currentMessage.length() + textoOcr.length() + historyJson.length()) / 4;
+            int estimate = tokensInput + 1500;
+            usageAuthService.validateSufficientTokens(currentUser, "CHAT", estimate, isConfirmed, toolName);
 
-            // 4. PREPARACIÓN DEL PAYLOAD
+            // 5. Preparación de Contexto (Bucket y Hoja de Ruta)
             String directrices = aiBucketService.readTextFile("Hoja_deRita.csv");
             String contextoCarpetas = generarContextoBucket();
 
@@ -109,26 +111,26 @@ public class AiController {
             payload.put("history", historyList);
             payload.put("hojaRuta", directrices);
             payload.put("estructuraCarpetas", contextoCarpetas);
-            payload.put("textoOcr", textoOcr.startsWith("A".repeat(100)) ? "" : textoOcr); // Limpiamos el texto falso
+            payload.put("textoOcr", textoOcr.startsWith("A".repeat(100)) ? "" : textoOcr);
             payload.put("fileBase64", fileBase64);
             payload.put("mimeType", mimeType);
 
-            // 5. LLAMADA REAL A LA IA
+            // 6. Llamada a la IA
             Map<String, Object> aiResponse = geminiService.processInteractiveChat(payload);
 
-            // 6. DEDUCCIÓN EXACTA DE TOKENS (Post-respuesta)
+            // 7. Deducción Real de Tokens
             if (aiResponse.containsKey("_usageMetadata")) {
-                Map<String, Integer> metadata = (Map<String, Integer>) aiResponse.get("_usageMetadata");
-                int totalTokensGastados = metadata.getOrDefault("totalTokens", 0);
-                usageAuthService.consumeTokens(currentUser, totalTokensGastados);
+                Map<String, Object> metadata = (Map<String, Object>) aiResponse.get("_usageMetadata");
+                Number totalSpent = (Number) metadata.getOrDefault("totalTokens", 0);
+                usageAuthService.consumeTokens(currentUser, "CHAT", totalSpent.intValue(), toolName);
             }
 
             return ResponseEntity.ok(aiResponse);
 
-        } catch (PlanLimitExceededException | UnauthorizedUserException e) {
+        } catch (PlanLimitExceededException | TokenConfirmationRequiredException e) {
             throw e;
         } catch (Exception e) {
-            System.err.println("--- [ERROR CONTROLLER] --- " + e.getMessage());
+            log.error("Error en Chat: ", e);
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
@@ -143,63 +145,88 @@ public class AiController {
         }
     }
     @PostMapping("/proxy-generate")
-    public ResponseEntity<Map<String, Object>> generateProxyPrompt(@RequestBody ProxyGenerateRequest payload) {
+    public ResponseEntity<Map<String, Object>> generateProxyPrompt(
+            @RequestHeader(value = "X-Confirm-Token", defaultValue = "false") boolean isConfirmed,
+            @RequestBody ProxyGenerateRequest payload) {
         try {
-            // 1. Identificar al usuario autenticado
-            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
+            // --- 🔍 LOG DE DEBUG PARA MARIANA ---
+            System.out.println(">>> RECIBIENDO PETICIÓN EN PROXY-GENERATE");
+            System.out.println(">>> Prompt: " + (payload.getPrompt() != null ? "Recibido" : "NULO"));
+            System.out.println(">>> ToolName recibido del Front: [" + payload.getToolName() + "]");
+            // ------------------------------------
 
-            // 2. Validar si su plan permite el uso de herramientas Proxy (Editor/Mini Apps)
+            UserEntity currentUser = userService.getCurrentAuthenticatedUser();
             JuxaPlanDef planDef = JuxaPlanDef.fromString(currentUser.getSubscriptionPlan());
 
-            String toolName = payload.getToolName(); // <-- NUEVO: El frontend debe enviarlo
+            // Aseguramos que no se convierta en "general" si viene algo
+            String toolName = payload.getToolName();
+            if (toolName == null || toolName.trim().isEmpty()) {
+                toolName = "general"; // Solo aquí se vuelve "general"
+            }
+            System.out.println("DEBUG: Procesando herramienta -> " + toolName);
+            String prompt = payload.getPrompt();
 
-            // 3. Validar si su plan permite el uso de la app/herramienta específica
+
+            // 2. Validar si el plan permite la herramienta específica
             if (!planDef.isToolAllowed(toolName)) {
-                throw new AppNotAllowedForSubscriptionException("Tu nivel de suscripción (" + planDef.getDbName() + ") no permite el uso de la herramienta: " + toolName + ". Mejora tu plan para acceder.");
+                throw new AppNotAllowedForSubscriptionException(
+                        "Tu plan " + planDef.getDbName() + " no permite usar la herramienta: " + toolName
+                );
             }
 
-            // 3. Validación de saldo de Tokens antes de la llamada
-            String prompt = payload.getPrompt();
-            // Usamos el servicio existente para asegurar que tiene saldo
-            usageAuthService.validateSufficientTokens(currentUser, prompt, "", "");
+            // 3. DETERMINAR EL MÓDULO (Para saber qué bolsa de tokens tocar)
+            String module = "APPS"; // Por defecto
 
-            // 4. Ejecución de la llamada a Gemini
+            // Lógica para detectar el módulo según el toolName
+            if (toolName.toLowerCase().contains("doc") || toolName.toLowerCase().contains("editor")) {
+                module = "DOCS";
+            } else if (isMiniApp(toolName)) {
+                module = "MINI_APPS";
+            }
+
+            // Estimación de tokens (chars / 4 + buffer)
+            int estimate = (prompt.length() / 4) + 1500;
+
+            // 4. PEAJE DE ENTRADA (Ahora enviamos el toolName para aplicar las excepciones)
+            // Pasamos: (Usuario, Módulo, Estimación, Confirmación, Herramienta)
+            usageAuthService.validateSufficientTokens(currentUser, module, estimate, isConfirmed, toolName);
+
+            // 5. EJECUCIÓN EN GEMINI
             String aiResponse = geminiClient.callGemini(prompt);
 
-            // 5. Procesamiento de la respuesta
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(aiResponse);
+            // 6. PROCESAMIENTO DE RESPUESTA
+            JsonNode rootNode = objectMapper.readTree(aiResponse);
+            String cleanText = rootNode.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
 
-            String cleanText = rootNode.path("candidates")
-                    .get(0)
-                    .path("content")
-                    .path("parts")
-                    .get(0)
-                    .path("text")
-                    .asText();
-
-            // 6. Consumo posterior de tokens (Deducción real)
+            // 7. CONSUMO REAL (Deducción post-respuesta)
             JsonNode usageNode = rootNode.path("usageMetadata");
             if (!usageNode.isMissingNode()) {
-                int totalTokensSpent = usageNode.path("totalTokenCount").asInt(0);
-                usageAuthService.consumeTokens(currentUser, totalTokensSpent);
+                int totalSpent = usageNode.path("totalTokenCount").asInt(0);
+
+                // Pasamos el toolName también aquí para que el Service decida si cobrar o no
+                usageAuthService.consumeTokens(currentUser, module, totalSpent, toolName);
             }
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("rawResponse", cleanText);
-            return ResponseEntity.ok(response);
-        }catch (AppNotAllowedForSubscriptionException e) {
-            throw e;
-        }
-        catch (PlanLimitExceededException e) {
-            // El GlobalExceptionHandler ya maneja esto como un 403 Forbidden
-            throw e;
-        } catch (UnauthorizedUserException e) {
-            // El GlobalExceptionHandler ya maneja esto como un 401 Unauthorized
+            return ResponseEntity.ok(Map.of("rawResponse", cleanText));
+
+        } catch (AppNotAllowedForSubscriptionException | PlanLimitExceededException | TokenConfirmationRequiredException e) {
+            // Estas excepciones las captura el GlobalExceptionHandler para el Front
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Error interno al procesar la solicitud legal."));
+            log.error("Error crítico en Proxy Generate: ", e);
+            return ResponseEntity.status(500).body(Map.of("error", "Error interno en el procesamiento legal."));
         }
+    }
+
+    /**
+     * Método auxiliar para identificar si la herramienta es una Mini App
+     */
+    private boolean isMiniApp(String toolName) {
+        List<String> miniApps = List.of(
+                "redactor-hechos", "exam", "guide", "tipicidad",
+                "evidence-validator", "medidas-cautelares", "generador-interrogatorios"
+        );
+        return miniApps.contains(toolName.toLowerCase());
     }
 
 

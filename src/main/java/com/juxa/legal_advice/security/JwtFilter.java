@@ -39,12 +39,10 @@ public class JwtFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
 
         if ("OPTIONS".equalsIgnoreCase(request.getMethod()) ||
-                uri.contains("/api/ai/chat") ||
-                uri.startsWith("/api/ai/generate-initial-diagnosis") ||
-                uri.contains("/api/ai/architect") ||
                 uri.startsWith("/api/auth") ||
-                uri.equals("/api/payments/webhook")){
-                filterChain.doFilter(request, response);
+                uri.equals("/api/payments/webhook") ||
+                uri.equals("/actuator/health")) {
+            filterChain.doFilter(request, response);
             return;
         }
         System.out.println("JwtFilter interceptando URI: " + request.getRequestURI());

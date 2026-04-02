@@ -15,11 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
 @RestController
 @RequestMapping("/api/plans")
 @RequiredArgsConstructor
-public class PlanController {
+public class  PlanController {
 
     private final PlanService planService;
     private final UserService userService;
@@ -31,53 +30,72 @@ public class PlanController {
         return ResponseEntity.ok(plans);
     }
 
-   ////////////////////////// Mapea el plan de la base de datos de la tabla users ///////////////////////////
     @GetMapping("/me/usage")
     public ResponseEntity<UsageResponseDTO> getUserUsage() {
         UserEntity currentUser = userService.getCurrentAuthenticatedUser();
         JuxaPlanDef planDef = JuxaPlanDef.fromString(currentUser.getSubscriptionPlan());
 
+        // Obtenemos las estadísticas (esta llamada ya debe gestionar el reseteo mensual)
         PlanUsageEntity usage = usageAuthService.getUsageStats(currentUser);
 
-        // 1. Cálculos de Tokens
-        int tokensUsados = usage.getTokensUsedToday() != null ? usage.getTokensUsedToday() : 0;
-        int tokensExtra = usage.getExtraTokens() != null ? usage.getExtraTokens() : 0;
-        int limiteTokens = planDef.getMaxTokens();
+        // 1. CÁLCULO DE TOKENS (Suscripción + Bolsitas Anuales)
+        int tokensUsadosMes = usage.getTokensUsedToday() != null ? usage.getTokensUsedToday() : 0;
+        int limiteMensual = planDef.getMaxTokens();
 
-        int totalTokensDisponibles = limiteTokens + tokensExtra;
+        // Sumamos todas las bolsitas extra que el usuario ha comprado y no han vencido
+        int tokensExtraDisponibles = usage.getTotalExtraTokensAvailable();
 
-        // 2. Validación de estado (-1 significa ilimitado)
-        boolean isUnlimited = (limiteTokens == -1);
-        boolean canQuery = isUnlimited || (tokensUsados < totalTokensDisponibles);
+        // 2. VALIDACIÓN DE ESTADO PARA CONSULTAS
+        int interaccionesRealizadas = usage.getQueriesUsedToday() != null ? usage.getQueriesUsedToday() : 0;
+        int limiteCortesía = planDef.getMaxMonthlyInteractions();
 
-        // 3. Construcción de la respuesta
+        // Puede preguntar si:
+        // a) Tiene mensajes de cortesía restantes
+        // b) O tiene saldo en el plan mensual
+        // c) O tiene saldo en sus bolsitas compradas
+        boolean canQuery = (interaccionesRealizadas < limiteCortesía)
+                || (limiteMensual == -1)
+                || (tokensUsadosMes < limiteMensual)
+                || (tokensExtraDisponibles > 0);
+
+        // 3. CONSTRUCCIÓN DE LA RESPUESTA (Mapeando los nuevos Enums de Acceso)
         UsageResponseDTO response = UsageResponseDTO.builder()
                 .planName(planDef.getDbName())
 
-                // Nuevos datos de Tokens
-                .tokensUsed(tokensUsados)
-                .tokensLimit(limiteTokens)
-                .extraTokens(tokensExtra)
+                // Datos de Tokens y Límites
+                .tokensUsed(tokensUsadosMes)
+                .tokensLimit(limiteMensual)
+                .extraTokens(tokensExtraDisponibles) // Saldo total de todas sus bolsitas
+                .queriesUsed(interaccionesRealizadas)
+                .queriesLimit(limiteCortesía)
+
                 .canMakeMoreQueries(canQuery)
-                .canUseProxy(planDef.isCanUseProxy())
 
-                .canUseMiniApps(planDef.isCanUseMiniApps())
-                .canUseGenerator(planDef.isCanUseGenerator())
-                .canUseEducational(planDef.isCanUseEducational())
-                .canUseAnalysis(planDef.isCanUseAnalysis())
-                .canUseSustento(planDef.isCanUseSustento())
-                .canUseSemantic(planDef.isCanUseSemantic())
-                .canUseMagic(planDef.isCanUseMagic())
+                // MAPEOS DE ACCESO (Ahora usamos .isCanEnter() del Enum Access)
+                .canUseMiniApps(planDef.getMiniAppsAccess().isCanEnter())
+                .canUseProxy(planDef.getAppsAccess().isCanEnter())
+                .canUseGenerator(planDef.getDocsAccess().isCanEnter()) // Juxa Docs
+                .canUseConstructor(planDef.getConstructorAccess().isCanEnter()) // Juxa Constructor
+                .canUseRedactor(planDef.isCanUseRedactor())// <--- Redactor de Hechos
+                .canUseEducational(planDef.isCanUseExam())      // <--- Examen y Guía
+                .canUseAnalysis(planDef.isCanUseEvidenceValidator())
+                .canUseSemantic(planDef.isCanUseTipicidad())
+                .canUseSustento(planDef.isCanUseMedidasCautelares())
 
-                // Datos estadísticos (ya no bloquean, solo informan)
-                .queriesUsed(usage.getQueriesUsedToday() != null ? usage.getQueriesUsedToday() : 0)
-                .filesUsed(usage.getFilesUploadedToday() != null ? usage.getFilesUploadedToday() : 0)
+                // Etiquetas de ayuda para el Frontend (Opcional, pero útil)
+                .docsAccessLabel(planDef.getDocsAccess().getLabel())
+                .constructorAccessLabel(planDef.getConstructorAccess().getLabel())
 
-                // Capacidades del modelo
+                // Capacidades del modelo (Siguen siendo campos directos en JuxaPlanDef)
                 .aiModel(planDef.getAiModel())
+
+                // Nota: Si quitaste estos booleanos de JuxaPlanDef,
+                // aquí deberás usar constantes o eliminarlos del DTO
                 .canUploadAudio(planDef.isCanUploadAudio())
                 .canUploadVideo(planDef.isCanUploadVideo())
                 .hasFullHistory(planDef.isHasFullHistory())
+
+
                 .build();
 
         return ResponseEntity.ok(response);
