@@ -57,7 +57,7 @@ public class UserEntity {
 
     @Builder.Default
     @Column(name = "is_verified", nullable = false)
-    private Boolean isVerified = false; // Le ponemos un valor por defecto
+    private boolean isVerified = false; // Le ponemos un valor por defecto
 
     @PrePersist
     protected void onCreate() {
@@ -91,7 +91,10 @@ public class UserEntity {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private List<SubscriptionEntity> subscriptions;
+
 }
+
+
 
 
 

@@ -5,19 +5,14 @@ import lombok.Getter;
 @Getter
 public enum JuxaPlanDef {
 
-    // ESTRUCTURA:
-    // (dbName, maxTokens, maxMonthlyInteractions, aiModel,
-    //  miniAppsAccess, appsAccess, docsAccess, constructorAccess,
-    //  canUploadAudio, canUploadVideo, hasFullHistory,
-    //  HERRAMIENTAS...)
 
-    FREE("FREE", 50000, 3, "gemini-1.5-flash",
+    FREE("FREE", 50000, 90, "gemini-1.5-flash",
             // miniAppsAccess: Solo Redactor, pero permite el resto con tokens
             Access.ONLY_REDACTOR,
-            // appsAccess: Gasta tokens (Solo magistrado)
-            Access.TOKEN_BASED,
-            // docsAccess: Gasta tokens
-            Access.TOKEN_BASED,
+            // appsAccess: locked porque no podrá acceder a ninguna
+            Access.LOCKED,
+            // docsAccess: locked porque no podrá acceder a docs
+            Access.LOCKED,
             // constructorAccess: SIN ACCESO
             Access.LOCKED,
 
@@ -67,7 +62,7 @@ public enum JuxaPlanDef {
             true, true, true, true,
 
             true, true, true, true,
-            false, true);
+            true, true);
 
     @Getter
     public enum Access {
@@ -190,6 +185,7 @@ public enum JuxaPlanDef {
     public boolean isToolAllowed(String toolName) {
         if (toolName == null || toolName.trim().isEmpty()) return false;
         return switch (toolName.toLowerCase()) {
+            case "general", "chat", "magic-chat" -> true;
             case "exam" -> this.canUseExam;
             case "guide" -> this.canUseGuide;
             case "evidence-validator" -> this.canUseEvidenceValidator;
@@ -206,7 +202,7 @@ public enum JuxaPlanDef {
             case "clause-generator" -> this.canUseClauseGenerator;
             case "collection-letter" -> this.canUseCollectionLetter;
             case "carta-poder" -> this.canUseCartaPoder;
-            case "redactor-hechos" -> this.canUseRedactor;
+            case "redactor-hechos" -> this.canUseRedactor; //Se agrega para fix
             default -> false;
         };
     }

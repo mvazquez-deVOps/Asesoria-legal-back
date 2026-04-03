@@ -1,9 +1,14 @@
 package com.juxa.legal_advice.controller;
 
 import com.juxa.legal_advice.dto.*;
+import com.juxa.legal_advice.dto.resetPassword.ForgotPasswordRequestDTO;
+import com.juxa.legal_advice.dto.resetPassword.ResetPasswordRequestDTO;
+import com.juxa.legal_advice.dto.resetPassword.VerifyOtpRequestDTO;
 import com.juxa.legal_advice.service.AuthService;
+import com.juxa.legal_advice.service.PasswordResetService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,64 +17,53 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.Map;
 
+@Slf4j // Agregamos Lombok para logs si los necesitas aquí
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor // Inyecta automáticamente userService y authService
+@RequiredArgsConstructor
 public class AuthController {
-
+    private final PasswordResetService passwordResetService;
     private final UserService userService;
-    private final AuthService authService; // <--- AGREGA ESTA LÍNEA PARA QUITAR EL ROJO
+    private final AuthService authService;
     @Value("${google.client.id}")
     private String googleClientId;
 
+
     @PostMapping("/google")
-    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> request) {
-        String idTokenString = request.get("token"); // El token que envía el Front
-        try {
-            // Este método validará el token y creará/logueará al usuario
-            AuthResponseDTO response = authService.verifyGoogleToken(idTokenString);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Token de Google inválido", "message", e.getMessage()));
-        }
+    public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody Map<String, String> request) throws Exception {
+        String idTokenString = request.get("token");
+        // Si falla, el servicio lanza InvalidCredentialsException y el GlobalHandler responde 401
+        return ResponseEntity.ok(authService.verifyGoogleToken(idTokenString));
     }
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequestDTO credentials) {
-        try {
-            AuthResponseDTO response = userService.authenticate(credentials);
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Acceso denegado", "message", e.getMessage()));
+    public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO credentials) {
+        return ResponseEntity.ok(userService.authenticate(credentials));
+    }
+
+    @GetMapping("/confirm")
+    public ResponseEntity<?> confirmUserAccount(@RequestParam("token") String token) {
+        boolean isConfirmed = authService.confirmEmail(token);
+
+        if (isConfirmed) {
+            return ResponseEntity.ok(Map.of("message", "¡Cuenta confirmada exitosamente! Ya puedes iniciar sesión."));
+            // Nota: Si tienes frontend, aquí podrías hacer un redirect (ej. RedirectView)
+            // hacia tu página de Login en React/Angular/Vue en lugar de devolver un JSON.
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "El enlace es inválido o ha expirado."));
         }
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserRegistrationDTO registration) {
-        try {
-            String cleanEmail = registration.getEmail().trim().toLowerCase();
-            registration.setEmail(cleanEmail);
-            // Ahora 'authService' ya no marcará error porque está declarado arriba
-            AuthResponseDTO response = authService.register(registration);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Error en registro", "message", e.getMessage()));
-        }
+    public ResponseEntity<AuthRegistrationResponseDTO> register(@RequestBody UserRegistrationDTO registration) {
+        registration.setEmail(registration.getEmail().trim().toLowerCase());
+        return ResponseEntity.ok(authService.register(registration));
     }
 
-    @GetMapping("/profile/{id}")
-    public ResponseEntity<UserDataDTO> getUserProfile(@PathVariable String id) {
-        UserDataDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
-    }
     @PutMapping("/update-person-type")
-    public ResponseEntity<?> updatePersonType(@RequestBody Map<String, String> request, Principal principal) {
-        String type = request.get("type");
-        String email = principal.getName();
-
-        userService.updatePersonType(email, type);
+    public ResponseEntity<Map<String, String>> updatePersonType(@RequestBody Map<String, String> request, Principal principal) {
+        userService.updatePersonType(principal.getName(), request.get("type"));
         return ResponseEntity.ok(Map.of("message", "Perfil actualizado correctamente"));
     }
     @PutMapping("/update-person-type/{id}")
@@ -87,6 +81,24 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequestDTO request) {
+        passwordResetService.requestPasswordReset(request.getEmail());
+        return ResponseEntity.ok("Si el correo existe, se ha enviado un código de recuperación.");
+    }
 
+    // NUEVO ENDPOINT: Solo verifica el código
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@RequestBody VerifyOtpRequestDTO request) {
+        passwordResetService.verifyOtp(request.getEmail(), request.getOtp());
+        return ResponseEntity.ok("Código verificado correctamente. Procede a ingresar tu nueva contraseña.");
+    }
 
+    // ENDPOINT MODIFICADO: Hace el cambio final
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequestDTO request) {
+        // El frontend debe enviar el email, el código (de nuevo) y la contraseña nueva
+        passwordResetService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
+        return ResponseEntity.ok("Contraseña actualizada exitosamente.");
+    }
 }
