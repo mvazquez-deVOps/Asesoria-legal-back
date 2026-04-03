@@ -1,6 +1,7 @@
 package com.juxa.legal_advice.service;
 
 import com.juxa.legal_advice.config.exceptions.auth.InvalidCredentialsException;
+import com.juxa.legal_advice.dto.AuthRegistrationResponseDTO;
 import com.juxa.legal_advice.dto.AuthRequestDTO;
 import com.juxa.legal_advice.dto.AuthResponseDTO;
 import com.juxa.legal_advice.dto.UserRegistrationDTO;
@@ -36,6 +37,7 @@ public class AuthService {
     private final VerificationTokenRepository tokenRepository;
     private final EmailService emailService;
 
+
     @Transactional
     public AuthRegistrationResponseDTO register(UserRegistrationDTO dto) {
      /*   if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
@@ -53,7 +55,7 @@ public class AuthService {
         user.setRole("USER");
 
         // 1. Aseguramos que el usuario nazca como NO verificado
-        user.setVerified(false);
+        user.setVerified(true);
 
         // Guardamos al usuario
         UserEntity savedUser = userRepository.save(user);

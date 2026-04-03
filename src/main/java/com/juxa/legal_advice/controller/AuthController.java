@@ -9,6 +9,8 @@ import com.juxa.legal_advice.service.PasswordResetService;
 import com.juxa.legal_advice.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,7 +27,7 @@ public class AuthController {
     private final AuthService authService;
     @Value("${google.client.id}")
     private String googleClientId;
-    private final AuthService authService;
+
 
     @PostMapping("/google")
     public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody Map<String, String> request) throws Exception {
@@ -54,7 +56,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponseDTO> register(@RequestBody UserRegistrationDTO registration) {
+    public ResponseEntity<AuthRegistrationResponseDTO> register(@RequestBody UserRegistrationDTO registration) {
         registration.setEmail(registration.getEmail().trim().toLowerCase());
         return ResponseEntity.ok(authService.register(registration));
     }
