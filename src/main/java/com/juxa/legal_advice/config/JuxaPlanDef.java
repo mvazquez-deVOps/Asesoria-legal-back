@@ -9,10 +9,10 @@ public enum JuxaPlanDef {
     FREE("FREE", 50000, 90, "gemini-1.5-flash",
             // miniAppsAccess: Solo Redactor, pero permite el resto con tokens
             Access.ONLY_REDACTOR,
-            // appsAccess: Gasta tokens (Solo magistrado)
-            Access.TOKEN_BASED,
-            // docsAccess: Gasta tokens
-            Access.TOKEN_BASED,
+            // appsAccess: locked porque no podrá acceder a ninguna
+            Access.LOCKED,
+            // docsAccess: locked porque no podrá acceder a docs
+            Access.LOCKED,
             // constructorAccess: SIN ACCESO
             Access.LOCKED,
 
